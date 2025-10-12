@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 class UserCreate(BaseModel):  # Ce que le client envoie
     username: str
     money: float = 0.0
@@ -13,6 +13,12 @@ class MenuItemCreate(BaseModel):
     price: float
 
     model_config = {"from_attributes": True}
+
+    @validator('price')
+    def price_must_be_positive(cls, v):
+        if v <= 0:
+            raise ValueError('Le prix doit être positif')
+        return v
 
 class MenuItemOut(BaseModel):
     id: int

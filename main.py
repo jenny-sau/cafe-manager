@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas import UserCreate, UserOut
+from schemas import UserCreate, UserOut, MenuItemCreate, MenuItemOut
 from database import Base, engine, get_db
 import models
 
@@ -90,3 +90,81 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "User deleted"}
+
+@app.post("/menu",response_model=MenuItemOut)
+def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
+
+    # # Créer un objet MenuItem à partir du schéma Pydantic
+    db_menu_item = models.MenuItem(name=item.name, price=item.price)
+
+    # Ajouter l'objet à la session
+    db.add(db_menu_item)
+
+    # Sauvegarder en base
+    db.commit()
+
+    # Rafraîchir l'objet pour récupérer son id auto-incrémenté
+    db.refresh(db_menu_item)
+
+    return db_menu_item
+
+
+@app.get("/menu/{menu_id}", response_model=MenuItemOut)
+def read_menu_item(menu_id: int, db: Session = Depends(get_db)):
+    """
+    Récupère un produit menu par son id.
+    """
+    menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
+
+    if menu_item is None:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    return menu_item
+
+
+@app.put("/menu/{menu_id}", response_model=MenuItemOut)
+def update_menu_item(menu_id: int, menu_item: MenuItemCreate, db: Session = Depends(get_db)):
+    """
+    Modifie un produit menu existant.
+    """
+    # Chercher le produit
+    db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
+
+    # Vérifier s'il existe
+    if db_menu_item is None:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    # Modifier les champs
+    db_menu_item.name = menu_item.name
+    db_menu_item.price = menu_item.price
+
+    # Sauvegarder
+    db.commit()
+
+    # Rafraîchir
+    db.refresh(db_menu_item)
+
+    return db_menu_item
+
+
+@app.delete("/menu/{menu_id}")
+def delete_menu_item(menu_id: int, db: Session = Depends(get_db)):
+    """
+    Supprime un produit menu.
+    """
+    db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
+
+    if db_menu_item is None:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    db.delete(db_menu_item)
+
+    db.commit()
+
+    return {"message": "Menu item deleted"}
+
+@app.get("/menu", response_model=list[MenuItemOut])
+def list_menu(db: Session = Depends(get_db)):
+    return db.query(models.MenuItem).all()
+
+
