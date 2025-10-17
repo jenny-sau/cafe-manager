@@ -26,3 +26,17 @@ class MenuItemOut(BaseModel):
     price: float
 
     model_config = {"from_attributes": True}
+
+class InventoryCreate(BaseModel):
+    menu_item_id: int
+    quantity: int
+
+class InventoryOut(BaseModel):
+    id: int
+    menu_item_id: int
+    quantity: int
+
+    model_config = {"from_attributes": True}
+
+class InventoryUpdate(BaseModel):
+    quantity: int

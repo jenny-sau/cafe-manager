@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas import UserCreate, UserOut, MenuItemCreate, MenuItemOut
+from schemas import UserCreate, UserOut, MenuItemCreate, MenuItemOut, InventoryCreate, InventoryOut, InventoryUpdate
 from database import Base, engine, get_db
 import models
 
 # Crée la DB dès le lancement
 Base.metadata.create_all(bind=engine)
 
-# Crée l'application FastAP
+# Crée l'application FastAPI
 app = FastAPI()
 
 # Routes simples
@@ -166,5 +166,50 @@ def delete_menu_item(menu_id: int, db: Session = Depends(get_db)):
 @app.get("/menu", response_model=list[MenuItemOut])
 def list_menu(db: Session = Depends(get_db)):
     return db.query(models.MenuItem).all()
+
+@app.post("/inventory", response_model=InventoryOut)
+def create_inventory(inventory: InventoryCreate, db: Session = Depends(get_db)):
+    db_inventory= models.Inventory(menu_item_id=inventory.menu_item_id, quantity=inventory.quantity)
+    db.add(db_inventory)
+    db.commit()
+    db.refresh(db_inventory)
+    return db_inventory
+
+@app.get("/inventory/{item_id}", response_model=InventoryOut)
+def read_inventory(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+
+@app.put("/inventory/{item_id}", response_model=InventoryOut)
+def update_inventory(item_id: int, inventory: InventoryUpdate, db: Session = Depends(get_db)):
+    db_item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Modifier SEULEMENT la quantité
+    db_item.quantity = inventory.quantity
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+@app.delete("/inventory/{item_id}")
+def delete_inventory(item_id: int, db: Session = Depends(get_db)):
+    """
+    Supprime un inventaire.
+    """
+    db_item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+
+    if db_item is None:
+        raise HTTPException(status_code=404, detail="Inventory not found")
+
+    db.delete(db_item)
+    db.commit()
+
+    return {"message": "Inventory deleted"}
 
 
