@@ -96,3 +96,35 @@ class OrderRead(BaseModel):
     menu_item_id: int
     quantity: int
     model_config = {"from_attributes": True}
+
+
+# --------------------------
+# AUTHENTIFICATION
+# --------------------------
+class UserSignup(BaseModel):
+    """Données pour créer un compte."""
+    username: str
+    password: str
+    money: float = 0.0
+
+    @field_validator('username')
+    @classmethod
+    def username_not_empty(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('Username doit faire au moins 3 caractères')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_strong_enough(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password doit faire au moins 6 caractères')
+        return v
+
+
+class UserResponse(BaseModel):
+    """Utilisateur retourné après signup/login (SANS password)."""
+    id: int
+    username: str
+    money: float
+    model_config = {"from_attributes": True}

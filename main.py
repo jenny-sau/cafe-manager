@@ -4,10 +4,13 @@ from schemas import (
     UserCreate, UserOut,
     MenuItemCreate, MenuItemOut,
     InventoryCreate, InventoryOut, InventoryUpdate,
-    OrderCreate, OrderRead
+    OrderCreate, OrderRead,
+UserSignup, UserResponse
 )
 from database import Base, engine, get_db
 import models
+from auth import hash_password
+
 
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
@@ -225,3 +228,38 @@ def restock_item(order: OrderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(inventory_item)
     return inventory_item
+
+# --------------------------
+# AUTHENTIFICATION
+# --------------------------
+@app.post("/auth/signup", response_model=UserResponse)
+def signup(user: UserSignup, db: Session = Depends(get_db)):
+    """
+    Créer un nouveau compte utilisateur.
+    """
+    # 1. Chercher si username existe déjà
+    existing_user = db.query(models.User).filter(
+        models.User.username == user.username
+    ).first()
+
+    # 2. Si existe, erreur
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username déjà pris")
+
+    # 3. Hasher le password
+    hashed = hash_password(user.password)
+
+    # 4. Créer le user
+    db_user = models.User(
+        username=user.username,
+        password_hash=hashed,  # ← Pas user.password !
+        money=user.money
+    )
+
+    # 5. Sauvegarder
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    # 6. Retourner (sans password)
+    return db_user
