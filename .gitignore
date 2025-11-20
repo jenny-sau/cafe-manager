@@ -1,0 +1,17 @@
+# Base de données locale
+*.db
+
+# Environnement virtuel
+mon_env/
+venv/
+env/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/

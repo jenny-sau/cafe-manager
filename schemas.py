@@ -128,3 +128,8 @@ class UserResponse(BaseModel):
     username: str
     money: float
     model_config = {"from_attributes": True}
+
+class UserLogin(BaseModel):
+    """Données pour se connecter."""
+    username: str
+    password: str
