@@ -7,64 +7,37 @@
 <a name="english"></a>
 ## 🇬🇧 English
 
-A REST API to manage a café with its menu, inventory, and orders. I built this project to learn FastAPI and JWT authentication.
+Backend API for a café management game built with FastAPI.
 
-### What I learned
+Players start with a budget, buy products, serve customers, and manage inventory. The API handles all the logic: stock verification, money calculations, and authentication.
 
-While developing this API, I worked on:
-- Building a REST API with FastAPI
-- JWT authentication and password hashing
-- Database management with SQLAlchemy
-- Route protection and permission handling
-- Data validation with Pydantic
+### Why this project
 
-### Features
-
-- Create an account and log in
-- Manage the café menu (add, edit, delete products)
-- Track inventory in real-time
-- Place orders (automatically decreasing stock)
-- Restock inventory
-
-### Technologies
-
-- **FastAPI** - Python web framework
-- **SQLAlchemy** - ORM for database management
-- **SQLite** - Database (easy to start with)
-- **JWT** - For authentication
-- **bcrypt** - To secure passwords
+I'm learning backend development and FastAPI. Instead of making yet another basic CRUD app, I added game logic to have more interesting problems to solve.
 
 ### Installation
-
-Clone the project:
 ```bash
 git clone https://github.com/jenny-sau/cafe-manager.git
 cd cafe-manager
-```
-
-Create a virtual environment and install dependencies:
-```bash
-python -m venv mon_env
-mon_env\Scripts\activate  # On Windows
+python -m venv venv
+venv\Scripts\activate  # On Windows
 pip install -r requirements.txt
-```
-
-Run the application:
-```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at http://127.0.0.1:8000
+API runs on http://127.0.0.1:8000  
+Interactive docs: http://127.0.0.1:8000/docs
 
-Interactive documentation at http://127.0.0.1:8000/docs
+### Quick start
 
-### How to use the API
+1. **Create account**: `POST /auth/signup` with username, password, and starting money
+2. **Login**: `POST /auth/login` to get a JWT token (valid 24h)
+3. **Use token**: On Swagger, click "Authorize" and paste your token
+4. **Try protected endpoints**: inventory, orders
 
-#### Create an account
-```
-POST /auth/signup
-```
+Example signup:
 ```json
+POST /auth/signup
 {
   "username": "your_username",
   "password": "your_password",
@@ -72,132 +45,139 @@ POST /auth/signup
 }
 ```
 
-#### Log in
-```
-POST /auth/login
-```
-You'll receive a JWT token valid for 24h.
-
-#### Use the token
-
-On Swagger (interactive docs), click the "Authorize" button and paste your token.
-
-For your own requests, add the header:
-```
-Authorization: Bearer your_token
-```
-
 ### Main endpoints
 
-**Menu** (public access)
+**Public:**
 - `GET /menu` - List products
-- `POST /menu` - Add a product
-- `PUT /menu/{id}` - Update a product
-- `DELETE /menu/{id}` - Delete a product
+- `POST /menu` - Add product
+- `PUT /menu/{id}` - Update product
+- `DELETE /menu/{id}` - Delete product
 
-**Inventory** (authentication required)
-- `POST /inventory` - Create an inventory item
-- `GET /inventory` - View all inventory
+**Protected (need JWT token):**
+- `POST /inventory` - Create inventory item
+- `GET /inventory` - View your stock
 - `PUT /inventory/{id}` - Update quantities
+- `POST /order/client` - Place order (stock decreases, money increases)
+- `POST /order/restock` - Restock (stock increases, money decreases)
 
-**Orders** (authentication required)
-- `POST /order/client` - Place an order (decreases stock)
-- `POST /order/restock` - Restock (increases stock)
+### How it works
 
-### Code structure
+When a player places an order:
+1. API checks if enough stock
+2. If yes: decreases inventory, increases player's money
+3. If no: returns error
+
+When restocking:
+1. API checks if player has enough money
+2. If yes: increases inventory, decreases money
+3. If no: returns error
+
+### Tech stack
+
+- **FastAPI** - Python web framework
+- **SQLAlchemy** - ORM for database
+- **SQLite** - Database (good for dev, will migrate to PostgreSQL later)
+- **JWT** - Token-based authentication
+- **bcrypt** - Password hashing
+- **Pydantic** - Data validation
+
+### Project structure
 ```
 cafe_manager/
-├── main.py          # Routes and endpoints
-├── models.py        # Database models
-├── schemas.py       # Data validation
-├── database.py      # DB configuration
-├── auth.py          # Authentication management
-└── cafe.db          # Database (auto-generated)
+├── main.py          # FastAPI routes
+├── models.py        # Database models (User, MenuItem, Inventory, Order)
+├── schemas.py       # Pydantic schemas for validation
+├── database.py      # Database configuration
+├── auth.py          # JWT functions + password hashing
+└── cafe.db          # SQLite database (auto-generated)
 ```
+
+I split everything into separate files because having it all in `main.py` was getting messy.
+
+### What I learned
+
+While building this, I worked on:
+- FastAPI (routes, dependencies, validation)
+- SQLAlchemy (ORM, relationships between tables)
+- JWT authentication and password hashing
+- Project structure (separating models, schemas, auth)
+- Business logic (stock checks, money calculations)
+- How to design an API that does more than basic CRUD
 
 ### What I want to improve
 
-- Migrate to PostgreSQL for production
-- Add automated tests
-- Implement a role system (admin vs user)
-- Add pagination on lists
-- Set up CI/CD
+Currently functional but missing:
+- Automated tests (using pytest)
+- PostgreSQL instead of SQLite
+- Role system (admin vs regular user)
+- Pagination for large lists
+- Actual game frontend
+- CI/CD pipeline
 
-### Tests performed
+Game features to add:
+- Events (morning rush, promotions)
+- Player stats (money earned, best-selling product)
+- Achievements system
+- Multiplayer leaderboard
 
-I manually tested with Swagger:
-- Account creation and login
-- Route protection (without token → 403 error)
-- Invalid tokens properly rejected
-- Stock management working correctly
+### Testing
+
+I've manually tested via Swagger:
+- Account creation + login: works
+- Invalid/expired tokens: properly rejected
+- Ordering without enough stock: correct error
+- Ordering without money: correct error
+- Stock updates after order: works
+- Protected routes without token: 403 error
+
+Need to automate this with pytest.
 
 ### Notes
 
-This project is part of my backend development learning journey. The default password should be changed in production, and more validations and error handling would be needed for real-world use.
+The `SECRET_KEY` in `auth.py` is hardcoded for development. In production it should be in an environment variable.
+
+If you want to test it, easiest way is to create an account on Swagger, login, and try placing orders.
+
+### License
+
+MIT - do whatever you want with it
 
 ---
 
 <a name="français"></a>
 ## 🇫🇷 Français
 
-Une API REST pour gérer un café avec son menu, son stock et ses commandes. J'ai construit ce projet pour apprendre FastAPI et l'authentification JWT.
+API backend pour un jeu de gestion de café développé avec FastAPI.
 
-### Ce que j'ai appris
+Le joueur démarre avec un budget, achète des produits, sert des clients et gère son stock. L'API gère toute la logique : vérification du stock, calcul de l'argent, authentification.
 
-En développant cette API, j'ai travaillé sur :
-- La création d'une API REST avec FastAPI
-- L'authentification avec JWT et le hachage de mots de passe
-- La gestion d'une base de données avec SQLAlchemy
-- La protection de routes et la gestion des permissions
-- La validation de données avec Pydantic
+### Pourquoi ce projet
 
-### Fonctionnalités
-
-- Créer un compte et se connecter
-- Gérer le menu du café (ajouter, modifier, supprimer des produits)
-- Suivre l'inventaire en temps réel
-- Passer des commandes (qui diminuent automatiquement le stock)
-- Réapprovisionner l'inventaire
-
-### Technologies
-
-- **FastAPI** - Framework web Python
-- **SQLAlchemy** - ORM pour gérer la base de données
-- **SQLite** - Base de données (facile pour commencer)
-- **JWT** - Pour l'authentification
-- **bcrypt** - Pour sécuriser les mots de passe
+J'apprends le développement backend et FastAPI. Plutôt que faire un énième CRUD basique, j'ai ajouté de la logique de jeu pour avoir des problèmes plus intéressants à résoudre.
 
 ### Installation
-
-Cloner le projet :
 ```bash
 git clone https://github.com/jenny-sau/cafe-manager.git
 cd cafe-manager
-```
-
-Créer un environnement virtuel et installer les dépendances :
-```bash
-python -m venv mon_env
-mon_env\Scripts\activate  # Sur Windows
+python -m venv venv
+venv\Scripts\activate  # Sur Windows
 pip install -r requirements.txt
-```
-
-Lancer l'application :
-```bash
 uvicorn main:app --reload
 ```
 
-L'API sera disponible sur http://127.0.0.1:8000
+L'API tourne sur http://127.0.0.1:8000  
+Doc interactive : http://127.0.0.1:8000/docs
 
-La documentation interactive est sur http://127.0.0.1:8000/docs
+### Démarrage rapide
 
-### Comment utiliser l'API
+1. **Créer un compte** : `POST /auth/signup` avec username, password et argent de départ
+2. **Se connecter** : `POST /auth/login` pour recevoir un token JWT (valide 24h)
+3. **Utiliser le token** : Sur Swagger, cliquer "Authorize" et coller le token
+4. **Tester les endpoints protégés** : inventory, orders
 
-#### Créer un compte
-```
-POST /auth/signup
-```
+Exemple d'inscription :
 ```json
+POST /auth/signup
 {
   "username": "votre_username",
   "password": "votre_password",
@@ -205,65 +185,99 @@ POST /auth/signup
 }
 ```
 
-#### Se connecter
-```
-POST /auth/login
-```
-Vous recevrez un token JWT valide 24h.
-
-#### Utiliser le token
-
-Sur Swagger (la doc interactive), cliquez sur le bouton "Authorize" et collez votre token.
-
-Pour vos propres requêtes, ajoutez le header :
-```
-Authorization: Bearer votre_token
-```
-
 ### Endpoints principaux
 
-**Menu** (accessible à tous)
+**Publics :**
 - `GET /menu` - Liste des produits
 - `POST /menu` - Ajouter un produit
 - `PUT /menu/{id}` - Modifier un produit
 - `DELETE /menu/{id}` - Supprimer un produit
 
-**Inventaire** (authentification requise)
+**Protégés (nécessitent un token JWT) :**
 - `POST /inventory` - Créer un item d'inventaire
-- `GET /inventory` - Voir tout l'inventaire
+- `GET /inventory` - Voir son stock
 - `PUT /inventory/{id}` - Modifier les quantités
+- `POST /order/client` - Passer une commande (stock diminue, argent augmente)
+- `POST /order/restock` - Réapprovisionner (stock augmente, argent diminue)
 
-**Commandes** (authentification requise)
-- `POST /order/client` - Passer une commande (diminue le stock)
-- `POST /order/restock` - Réapprovisionner (augmente le stock)
+### Comment ça fonctionne
 
-### Structure du code
+Quand un joueur passe une commande :
+1. L'API vérifie s'il y a assez de stock
+2. Si oui : diminue l'inventaire, augmente l'argent du joueur
+3. Si non : renvoie une erreur
+
+Lors d'un réapprovisionnement :
+1. L'API vérifie si le joueur a assez d'argent
+2. Si oui : augmente l'inventaire, diminue l'argent
+3. Si non : renvoie une erreur
+
+### Stack technique
+
+- **FastAPI** - Framework web Python
+- **SQLAlchemy** - ORM pour la base de données
+- **SQLite** - Base de données (bien pour le dev, migration vers PostgreSQL prévue)
+- **JWT** - Authentification par tokens
+- **bcrypt** - Hash des mots de passe
+- **Pydantic** - Validation des données
+
+### Structure du projet
 ```
 cafe_manager/
-├── main.py          # Routes et endpoints
-├── models.py        # Modèles de la base de données
-├── schemas.py       # Validation des données
-├── database.py      # Configuration DB
-├── auth.py          # Gestion de l'authentification
-└── cafe.db          # Base de données (générée automatiquement)
+├── main.py          # Routes FastAPI
+├── models.py        # Modèles de base de données (User, MenuItem, Inventory, Order)
+├── schemas.py       # Schémas Pydantic pour validation
+├── database.py      # Configuration base de données
+├── auth.py          # Fonctions JWT + hash des passwords
+└── cafe.db          # Base SQLite (générée automatiquement)
 ```
+
+J'ai tout séparé dans des fichiers différents parce que tout mettre dans `main.py` devenait illisible.
+
+### Ce que j'ai appris
+
+En développant ce projet, j'ai travaillé sur :
+- FastAPI (routes, dépendances, validation)
+- SQLAlchemy (ORM, relations entre tables)
+- Authentification JWT et hash des mots de passe
+- Structure de projet (séparer models, schemas, auth)
+- Logique métier (vérification stock, calcul argent)
+- Comment concevoir une API qui fait plus que du CRUD basique
 
 ### Ce que je veux améliorer
 
-- Migrer vers PostgreSQL pour la production
-- Ajouter des tests automatiques
-- Implémenter un système de rôles (admin vs utilisateur)
-- Ajouter la pagination sur les listes
-- Configurer un CI/CD
+Actuellement fonctionnel mais il manque :
+- Tests automatiques (avec pytest)
+- PostgreSQL à la place de SQLite
+- Système de rôles (admin vs utilisateur normal)
+- Pagination pour les grandes listes
+- Une vraie interface de jeu
+- Pipeline CI/CD
 
-### Tests effectués
+Fonctionnalités de jeu à ajouter :
+- Événements (rush du matin, promotions)
+- Statistiques du joueur (argent gagné, produit le plus vendu)
+- Système d'achievements
+- Classement multijoueur
 
-J'ai testé manuellement avec Swagger :
-- Création de compte et connexion
-- Protection des routes (sans token → erreur 403)
-- Tokens invalides bien rejetés
-- Gestion du stock qui fonctionne correctement
+### Tests
+
+J'ai testé manuellement via Swagger :
+- Création de compte + connexion : fonctionne
+- Tokens invalides/expirés : bien rejetés
+- Commander sans stock suffisant : erreur correcte
+- Commander sans argent : erreur correcte
+- Mise à jour du stock après commande : fonctionne
+- Routes protégées sans token : erreur 403
+
+Faut que j'automatise ça avec pytest.
 
 ### Notes
 
-Ce projet fait partie de mon apprentissage du développement backend. Le mot de passe par défaut devrait être changé en production, et il faudrait ajouter plus de validations et de gestion d'erreurs pour un usage réel.
+Le `SECRET_KEY` dans `auth.py` est en dur pour le développement. En production il faudrait le mettre dans une variable d'environnement.
+
+Si tu veux tester, le plus simple c'est de créer un compte sur Swagger, te connecter, et essayer de passer des commandes.
+
+### Licence
+
+MIT - fais-en ce que tu veux
