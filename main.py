@@ -139,11 +139,28 @@ def read_menu_item(menu_id: int, db: Session = Depends(get_db)):
     return menu_item
 
 
-@app.get("/menu", response_model=list[MenuItemOut])
+@app.get("/menu")
 def list_menu(db: Session = Depends(get_db)):
     """Liste tous les items du menu."""
-    return db.query(models.MenuItem).all()
+    all_items = db.query(models.MenuItem).all()
+    menu_with_stock = []
 
+    for item in all_items:
+        stock = db.query(models.Inventory).filter(
+            models.Inventory.menu_item_id == item.id
+        ).first()
+
+        product_info = {
+            "id": item.id,
+            "name": item.name,
+            "price": item.price,
+            "stock": stock.quantity if stock else 0,
+            "available": "available" if stock and stock.quantity > 0 else "unavailable"
+        }
+
+        menu_with_stock.append(product_info)  # N'oublie pas cette ligne !
+
+    return menu_with_stock
 
 @app.put("/menu/{menu_id}", response_model=MenuItemOut)
 def update_menu_item(menu_id: int, menu_item: MenuItemCreate, db: Session = Depends(get_db)):
@@ -181,7 +198,8 @@ def create_inventory(
     """Crée un nouvel inventaire (nécessite authentification)."""
     db_inventory = models.Inventory(
         menu_item_id=inventory.menu_item_id,
-        quantity=inventory.quantity
+        quantity=inventory.quantity,
+        user_id=current_user.id
     )
     db.add(db_inventory)
     db.commit()
@@ -189,11 +207,57 @@ def create_inventory(
     return db_inventory
 
 
-@app.get("/inventory", response_model=list[InventoryOut])
-def list_inventory(db: Session = Depends(get_db)):
-    """Liste tous les items d'inventaire."""
-    return db.query(models.Inventory).all()
+@app.get("/inventory")
+def list_inventory(
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+):
+    """Liste l'inventaire du joueur connecté avec détails."""
 
+    # 1. Récupère l'inventaire du joueur
+    inventory_items = db.query(models.Inventory).filter(
+        models.Inventory.user_id == current_user.id
+    ).all()
+
+    # 2. Enrichis chaque item
+    inventory_details = []
+    for inv in inventory_items:
+        # Récupère le menu_item correspondant
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == inv.menu_item_id  # ← Correction 1
+        ).first()
+
+        # Calcule la valeur totale
+        total_value = inv.quantity * menu_item.price if menu_item else 0  # ← Correction 2
+
+        # Détermine le statut
+        status = "low_stock" if inv.quantity < 10 else "ok"  # ← Correction 3
+
+        # Crée le dictionnaire
+        product_info = {
+            "id": inv.id,
+            "menu_item_id": inv.menu_item_id,
+            "product_name": menu_item.name if menu_item else "Unknown",
+            "quantity": inv.quantity,
+            "unit_price": menu_item.price if menu_item else 0,
+            "total_value": round(total_value, 2),  # Arrondi à 2 décimales
+            "status": status
+        }
+
+        # Ajoute à la liste
+        inventory_details.append(product_info)
+
+    # 3. Retourne tout
+    return {
+        "player": {
+            "username": current_user.username,
+            "money": current_user.money
+        },
+        "inventory": {
+            "total_items": len(inventory_details),
+            "items": inventory_details
+        }
+    }
 
 @app.get("/inventory/{item_id}", response_model=InventoryOut)
 def read_inventory(item_id: int, db: Session = Depends(get_db)):
@@ -240,9 +304,10 @@ def order_for_client(
     Passe une commande pour un client (nécessite authentification).
     Diminue le stock si la quantité est disponible.
     """
-    # Cherche l'inventory par menu_item_id
+    # Cherche l'inventory par menu_item_id ET user_id
     inventory_item = db.query(models.Inventory).filter(
-        models.Inventory.menu_item_id == order.menu_item_id
+        models.Inventory.menu_item_id == order.menu_item_id,
+        models.Inventory.user_id == current_user.id  # ← AJOUTE CETTE LIGNE
     ).first()
 
     if not inventory_item or inventory_item.quantity < order.quantity:
@@ -251,14 +316,16 @@ def order_for_client(
     # Retirer du stock
     inventory_item.quantity -= order.quantity
 
-    # Créer la commande
-    db_order = models.Order(menu_item_id=order.menu_item_id, quantity=order.quantity)
+    # Créer la commande avec user_id
+    db_order = models.Order(
+        menu_item_id=order.menu_item_id,
+        quantity=order.quantity,
+        user_id=current_user.id  # ← AJOUTE CETTE LIGNE
+    )
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
     return db_order
-
-
 # ----------------------
 # RÉAPPROVISIONNEMENT PAR LE JOUEUR (PROTÉGÉ)
 # ----------------------
@@ -274,14 +341,16 @@ def restock_item(
     Sinon, la quantité existante est augmentée.
     """
     inventory_item = db.query(models.Inventory).filter(
-        models.Inventory.menu_item_id == order.menu_item_id
+        models.Inventory.menu_item_id == order.menu_item_id,
+        models.Inventory.user_id == current_user.id  # ← AJOUTE CETTE LIGNE
     ).first()
 
     if not inventory_item:
         # Crée un nouvel item dans l'inventaire
         inventory_item = models.Inventory(
             menu_item_id=order.menu_item_id,
-            quantity=order.quantity
+            quantity=order.quantity,
+            user_id=current_user.id  # ← AJOUTE CETTE LIGNE
         )
         db.add(inventory_item)
     else:

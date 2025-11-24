@@ -29,6 +29,7 @@ class Inventory(Base):
     id = Column(Integer, primary_key=True, index=True)
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
     quantity = Column(Integer, default=0)
+    user_id = Column(Integer, ForeignKey("users.id"))
 
 # --------------------------
 # Commandes
