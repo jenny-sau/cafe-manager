@@ -1,3 +1,4 @@
+import math
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -138,11 +139,18 @@ def read_menu_item(menu_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Menu item not found")
     return menu_item
 
-
 @app.get("/menu")
-def list_menu(db: Session = Depends(get_db)):
-    """Liste tous les items du menu."""
-    all_items = db.query(models.MenuItem).all()
+def list_menu(
+        page: int = 1,
+        limit: int = 20,
+        db: Session = Depends(get_db)
+):
+    """Liste tous les items du menu avec pagination."""
+    skip = (page - 1) * limit
+    all_items = db.query(models.MenuItem).offset(skip).limit(limit).all()
+    total_items = db.query(models.MenuItem).count()
+    total_pages = math.ceil(total_items / limit)  # ← CORRECTION ICI
+
     menu_with_stock = []
 
     for item in all_items:
@@ -158,9 +166,15 @@ def list_menu(db: Session = Depends(get_db)):
             "available": "available" if stock and stock.quantity > 0 else "unavailable"
         }
 
-        menu_with_stock.append(product_info)  # N'oublie pas cette ligne !
+        menu_with_stock.append(product_info)
 
-    return menu_with_stock
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "items": menu_with_stock
+    }
 
 @app.put("/menu/{menu_id}", response_model=MenuItemOut)
 def update_menu_item(menu_id: int, menu_item: MenuItemCreate, db: Session = Depends(get_db)):
@@ -361,6 +375,50 @@ def restock_item(
     db.refresh(inventory_item)
     return inventory_item
 
+
+@app.get("/orders")
+def list_orders(
+        page: int = 1,
+        limit: int = 20,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+):
+    """Liste toutes les commandes du joueur avec pagination."""
+
+    skip = (page - 1) * limit
+
+    orders = db.query(models.Order).filter(
+        models.Order.user_id == current_user.id
+    ).order_by(
+        models.Order.id.desc()
+    ).offset(skip).limit(limit).all()
+
+    total_items = db.query(models.Order).filter(
+        models.Order.user_id == current_user.id
+    ).count()
+
+    total_pages = math.ceil(total_items / limit)
+
+    orders_details = []
+    for order in orders:
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == order.menu_item_id
+        ).first()
+
+        orders_details.append({
+            "id": order.id,
+            "menu_item_id": order.menu_item_id,
+            "product_name": menu_item.name if menu_item else "Unknown",
+            "quantity": order.quantity
+        })
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "orders": orders_details
+    }
 
 # --------------------------
 # AUTHENTIFICATION
