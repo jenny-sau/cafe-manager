@@ -380,22 +380,31 @@ def restock_item(
 def list_orders(
         page: int = 1,
         limit: int = 20,
+        menu_item_id: int = None,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
     """Liste toutes les commandes du joueur avec pagination."""
 
     skip = (page - 1) * limit
-
-    orders = db.query(models.Order).filter(
+    query = db.query(models.Order).filter(
         models.Order.user_id == current_user.id
-    ).order_by(
+    )
+    #Filtre optionnel
+    if menu_item_id is not None:
+        query = query.filter(models.Order.menu_item_id == menu_item_id)
+
+    orders = query.order_by(
         models.Order.id.desc()
     ).offset(skip).limit(limit).all()
 
-    total_items = db.query(models.Order).filter(
+    count_query = db.query(models.Order).filter(
         models.Order.user_id == current_user.id
-    ).count()
+    )
+    if menu_item_id is not None:
+        count_query = count_query.filter(models.Order.menu_item_id == menu_item_id)
+
+    total_items = count_query.count()
 
     total_pages = math.ceil(total_items / limit)
 
