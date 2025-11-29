@@ -1,5 +1,5 @@
 import math
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from schemas import (
@@ -12,6 +12,10 @@ from schemas import (
 from database import Base, engine, get_db
 import models
 from auth import hash_password, verify_password, create_access_token, decode_access_token
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
@@ -23,6 +27,18 @@ Base.metadata.create_all(bind=engine)
 # ----------------------
 app = FastAPI()
 
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Pour dev : autorise tout
+    allow_credentials=True,
+    allow_methods=["*"],  # Autorise GET, POST, PUT, DELETE...
+    allow_headers=["*"],  # Autorise tous les headers
+)
 # ----------------------
 # SÉCURITÉ JWT
 # ----------------------
@@ -210,16 +226,30 @@ def create_inventory(
         current_user: models.User = Depends(get_current_user)
 ):
     """Crée un nouvel inventaire (nécessite authentification)."""
-    db_inventory = models.Inventory(
-        menu_item_id=inventory.menu_item_id,
-        quantity=inventory.quantity,
-        user_id=current_user.id
-    )
-    db.add(db_inventory)
-    db.commit()
-    db.refresh(db_inventory)
-    return db_inventory
 
+    #Vérifier si l'item existe déjà
+    existing_item = db.query(models.Inventory).filter(
+        models.Inventory.menu_item_id == inventory.menu_item_id,
+        models.Inventory.user_id == current_user.id
+    ).first()
+
+    if existing_item:
+        # Si existe, additionner
+        existing_item.quantity += inventory.quantity
+        db.commit()
+        db.refresh(existing_item)
+        return existing_item
+    else:
+        # Sinon, créer nouveau
+        db_inventory = models.Inventory(
+            menu_item_id=inventory.menu_item_id,
+            quantity=inventory.quantity,
+            user_id=current_user.id
+        )
+        db.add(db_inventory)
+        db.commit()
+        db.refresh(db_inventory)
+        return db_inventory
 
 @app.get("/inventory")
 def list_inventory(
@@ -235,6 +265,7 @@ def list_inventory(
 
     # 2. Enrichis chaque item
     inventory_details = []
+    notifications = []
     for inv in inventory_items:
         # Récupère le menu_item correspondant
         menu_item = db.query(models.MenuItem).filter(
@@ -261,6 +292,8 @@ def list_inventory(
         # Ajoute à la liste
         inventory_details.append(product_info)
 
+        if inv.quantity < 10:
+            notifications.append(f"⚠️ Stock faible : {menu_item.name} ({inv.quantity} unités)")
     # 3. Retourne tout
     return {
         "player": {
@@ -270,7 +303,9 @@ def list_inventory(
         "inventory": {
             "total_items": len(inventory_details),
             "items": inventory_details
-        }
+        },
+        "notifications": notifications
+
     }
 
 @app.get("/inventory/{item_id}", response_model=InventoryOut)
@@ -308,7 +343,7 @@ def delete_inventory(item_id: int, db: Session = Depends(get_db)):
 # ----------------------
 # COMMANDES CLIENTS (PROTÉGÉ)
 # ----------------------
-@app.post("/order/client", response_model=OrderRead)
+@app.post("/order/client")
 def order_for_client(
         order: OrderCreate,
         db: Session = Depends(get_db),
@@ -321,11 +356,16 @@ def order_for_client(
     # Cherche l'inventory par menu_item_id ET user_id
     inventory_item = db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
-        models.Inventory.user_id == current_user.id  # ← AJOUTE CETTE LIGNE
+        models.Inventory.user_id == current_user.id
     ).first()
 
     if not inventory_item or inventory_item.quantity < order.quantity:
         raise HTTPException(status_code=400, detail="Stock insuffisant")
+
+    #Récupérer le menu_item pour le nom
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == order.menu_item_id
+    ).first()
 
     # Retirer du stock
     inventory_item.quantity -= order.quantity
@@ -334,12 +374,21 @@ def order_for_client(
     db_order = models.Order(
         menu_item_id=order.menu_item_id,
         quantity=order.quantity,
-        user_id=current_user.id  # ← AJOUTE CETTE LIGNE
+        user_id=current_user.id
     )
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
-    return db_order
+
+    return {
+        "order": {
+            "id": db_order.id,
+            "menu_item_id": db_order.menu_item_id,
+            "quantity": db_order.quantity,
+            "user_id": db_order.user_id
+        },
+        "message": f"Votre commande de {menu_item.name} est bien passée ! Stock restant : {inventory_item.quantity}"
+    }
 # ----------------------
 # RÉAPPROVISIONNEMENT PAR LE JOUEUR (PROTÉGÉ)
 # ----------------------
@@ -433,7 +482,8 @@ def list_orders(
 # AUTHENTIFICATION
 # --------------------------
 @app.post("/auth/signup", response_model=UserResponse)
-def signup(user: UserSignup, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") # ← Maximum 5 signups par minute
+def signup(request: Request, user: UserSignup, db: Session = Depends(get_db)):
     """Créer un nouveau compte utilisateur."""
     # 1. Chercher si username existe déjà
     existing_user = db.query(models.User).filter(
