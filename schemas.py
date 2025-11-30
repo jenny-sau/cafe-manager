@@ -106,6 +106,7 @@ class UserSignup(BaseModel):
     username: str
     password: str
     money: float = 0.0
+    is_admin: bool = False
 
     @field_validator('username')
     @classmethod
@@ -127,6 +128,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     money: float
+    is_admin: bool
     model_config = {"from_attributes": True}
 
 class UserLogin(BaseModel):

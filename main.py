@@ -2,6 +2,7 @@ import math
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from schemas import (
     UserCreate, UserOut,
     MenuItemCreate, MenuItemOut,
@@ -72,6 +73,16 @@ def get_current_user(
 
     return user
 
+def get_current_admin(
+    current_user: models.User = Depends(get_current_user)
+):
+    """Vérifie que l'utilisateur connecté est admin."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Accès refusé : Vous devez être admin"
+        )
+    return current_user
 
 # ----------------------
 # ROUTES SIMPLES / TEST
@@ -165,7 +176,7 @@ def list_menu(
     skip = (page - 1) * limit
     all_items = db.query(models.MenuItem).offset(skip).limit(limit).all()
     total_items = db.query(models.MenuItem).count()
-    total_pages = math.ceil(total_items / limit)  # ← CORRECTION ICI
+    total_pages = math.ceil(total_items / limit)
 
     menu_with_stock = []
 
@@ -405,7 +416,7 @@ def restock_item(
     """
     inventory_item = db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
-        models.Inventory.user_id == current_user.id  # ← AJOUTE CETTE LIGNE
+        models.Inventory.user_id == current_user.id
     ).first()
 
     if not inventory_item:
@@ -413,7 +424,7 @@ def restock_item(
         inventory_item = models.Inventory(
             menu_item_id=order.menu_item_id,
             quantity=order.quantity,
-            user_id=current_user.id  # ← AJOUTE CETTE LIGNE
+            user_id=current_user.id
         )
         db.add(inventory_item)
     else:
@@ -501,7 +512,8 @@ def signup(request: Request, user: UserSignup, db: Session = Depends(get_db)):
     db_user = models.User(
         username=user.username,
         password_hash=hashed,
-        money=user.money
+        money=user.money,
+        is_admin = user.is_admin
     )
 
     # 5. Sauvegarder
@@ -540,5 +552,67 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             "id": user.id,
             "username": user.username,
             "money": user.money
+        }
+    }
+
+
+# --------------------------
+# ROUTES ADMIN
+# --------------------------
+@app.get("/admin/users")
+def list_all_users(
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
+):
+    """Liste tous les utilisateurs (admin uniquement)."""
+    users = db.query(models.User).all()
+
+    users_list = []
+    for user in users:
+        users_list.append({
+            "id": user.id,
+            "username": user.username,
+            "money": user.money,
+            "is_admin": user.is_admin
+        })
+
+    return {
+        "total_users": len(users_list),
+        "users": users_list
+    }
+
+
+@app.get("/admin/stats")
+def get_global_stats(
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)  #Admin requis
+):
+    """Statistiques globales du jeu (admin uniquement)."""
+
+    # Compter les utilisateurs
+    total_users = db.query(models.User).count()
+    total_admins = db.query(models.User).filter(models.User.is_admin == True).count()
+
+    # Compter les produits
+    total_menu_items = db.query(models.MenuItem).count()
+
+    # Compter les commandes
+    total_orders = db.query(models.Order).count()
+
+    # Argent total en circulation
+    total_money = db.query(models.User).with_entities(
+        func.sum(models.User.money)
+    ).scalar() or 0
+
+    return {
+        "users": {
+            "total": total_users,
+            "admins": total_admins,
+            "players": total_users - total_admins
+        },
+        "game": {
+            "total_menu_items": total_menu_items,
+            "total_orders": total_orders,
+            "total_money_in_game": round(total_money, 2)
         }
     }

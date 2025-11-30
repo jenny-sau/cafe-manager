@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 from database import Base
 
 # --------------------------
@@ -10,7 +10,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     money = Column(Float, default=0.0)
-
+    is_admin = Column(Boolean, default=False)
 # --------------------------
 # MENU
 # --------------------------
