@@ -616,3 +616,95 @@ def get_global_stats(
             "total_money_in_game": round(total_money, 2)
         }
     }
+
+
+# --------------------------
+# ROUTES ADMIN (suite)
+# --------------------------
+
+@app.get("/admin/orders")
+def list_all_orders(
+        page: int = 1,
+        limit: int = 20,
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
+):
+    """Liste toutes les commandes de tous les joueurs (admin uniquement)."""
+
+    skip = (page - 1) * limit
+
+    # Toutes les commandes (pas de filtre user_id)
+    orders = db.query(models.Order).order_by(
+        models.Order.id.desc()
+    ).offset(skip).limit(limit).all()
+
+    total_items = db.query(models.Order).count()
+    total_pages = math.ceil(total_items / limit)
+
+    orders_details = []
+    for order in orders:
+        # Récupérer le menu_item
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == order.menu_item_id
+        ).first()
+
+        # Récupérer l'utilisateur qui a passé la commande
+        user = db.query(models.User).filter(
+            models.User.id == order.user_id
+        ).first()
+
+        orders_details.append({
+            "id": order.id,
+            "menu_item_id": order.menu_item_id,
+            "product_name": menu_item.name if menu_item else "Unknown",
+            "quantity": order.quantity,
+            "user_id": order.user_id,
+            "username": user.username if user else "Unknown"
+        })
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "orders": orders_details
+    }
+
+
+@app.delete("/admin/inventory/{item_id}")
+def admin_delete_inventory(
+        item_id: int,
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
+):
+    """Supprime n'importe quel item d'inventaire (admin uniquement)."""
+
+    # Pas de filtre user_id, on peut supprimer n'importe quel inventaire
+    db_item = db.query(models.Inventory).filter(
+        models.Inventory.id == item_id
+    ).first()
+
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    # Récupérer les infos avant de supprimer
+    user = db.query(models.User).filter(
+        models.User.id == db_item.user_id
+    ).first()
+
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == db_item.menu_item_id
+    ).first()
+
+    db.delete(db_item)
+    db.commit()
+
+    return {
+        "message": "Inventory deleted",
+        "deleted_item": {
+            "id": item_id,
+            "product_name": menu_item.name if menu_item else "Unknown",
+            "quantity": db_item.quantity,
+            "owner": user.username if user else "Unknown"
+        }
+    }
