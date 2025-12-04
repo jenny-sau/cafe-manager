@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from datetime import datetime
 
 # --------------------------
 # UTILISATEUR
@@ -135,3 +136,26 @@ class UserLogin(BaseModel):
     """Données pour se connecter."""
     username: str
     password: str
+
+# --------------------------
+# HISTORIQUE DU JOUEUR
+# --------------------------
+class GameLogOut(BaseModel):
+    id: int
+    action_type: str
+    message: str
+    amount: float | None  # ← Peut être None
+    timestamp: datetime
+    model_config = {"from_attributes": True}
+
+# --------------------------
+# STATISTIQUES DU JOUEUR
+# --------------------------
+class PlayerProgressOut(BaseModel):
+    id: int
+    user_id: int
+    total_money_earned: float
+    total_orders: int
+    current_level: int
+    total_money_spent: float
+    model_config = {"from_attributes": True}

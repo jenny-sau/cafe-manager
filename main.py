@@ -8,7 +8,8 @@ from schemas import (
     MenuItemCreate, MenuItemOut,
     InventoryCreate, InventoryOut, InventoryUpdate,
     OrderCreate, OrderRead,
-    UserSignup, UserResponse, UserLogin
+    UserSignup, UserResponse, UserLogin,
+    GameLogOut
 )
 from database import Base, engine, get_db
 import models
@@ -17,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from game_utils import log_action
 
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
@@ -363,31 +365,51 @@ def order_for_client(
     """
     Passe une commande pour un client (nécessite authentification).
     Diminue le stock si la quantité est disponible.
+    Ajoute l'argent au joueur et log l'action.
     """
-    # Cherche l'inventory par menu_item_id ET user_id
+    # 1. Chercher l'inventory par menu_item_id ET user_id
     inventory_item = db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
         models.Inventory.user_id == current_user.id
     ).first()
 
+    # 2. Vérifier le stock
     if not inventory_item or inventory_item.quantity < order.quantity:
         raise HTTPException(status_code=400, detail="Stock insuffisant")
 
-    #Récupérer le menu_item pour le nom
+    # 3. Récupérer le menu_item pour le nom et le prix
     menu_item = db.query(models.MenuItem).filter(
         models.MenuItem.id == order.menu_item_id
     ).first()
 
-    # Retirer du stock
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+    # 4. Retirer du stock
     inventory_item.quantity -= order.quantity
 
-    # Créer la commande avec user_id
+    # 5. Créer la commande
     db_order = models.Order(
         menu_item_id=order.menu_item_id,
         quantity=order.quantity,
         user_id=current_user.id
     )
     db.add(db_order)
+
+    # 6. Calculer et ajouter l'argent au joueur
+    montant_gagne = menu_item.price * order.quantity
+    current_user.money += montant_gagne
+
+    # 7. Logger l'action
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action_type="order_client",
+        message=f"Vente : {order.quantity}x {menu_item.name} → +{montant_gagne}€",
+        amount=montant_gagne
+    )
+
+    # 8. Sauvegarder TOUT en une fois (stock + commande + argent + log)
     db.commit()
     db.refresh(db_order)
 
@@ -398,7 +420,7 @@ def order_for_client(
             "quantity": db_order.quantity,
             "user_id": db_order.user_id
         },
-        "message": f"Votre commande de {menu_item.name} est bien passée ! Stock restant : {inventory_item.quantity}"
+        "message": f"✅ Vente : {order.quantity}x {menu_item.name} → +{montant_gagne:.2f}€ | Stock restant : {inventory_item.quantity} | Argent : {current_user.money:.2f}€"
     }
 # ----------------------
 # RÉAPPROVISIONNEMENT PAR LE JOUEUR (PROTÉGÉ)
@@ -409,18 +431,31 @@ def restock_item(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Permet au joueur de réapprovisionner le stock (nécessite authentification).
-    Si l'item n'existe pas, il est créé.
-    Sinon, la quantité existante est augmentée.
-    """
+    # 1. Récupérer le menu_item pour avoir le prix
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == order.menu_item_id
+    ).first()
+
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+    # 2. Calculer le coût
+    montant_depense = menu_item.price * order.quantity
+
+    # 3. Vérifier que le joueur a assez d'argent
+    if current_user.money < montant_depense:
+        raise HTTPException(status_code=400, detail="Pas assez d'argent !")
+
+    # 4. Déduire l'argent
+    current_user.money -= montant_depense
+
+    # 5. Ajouter/mettre à jour l'inventaire (ton code existant)
     inventory_item = db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
         models.Inventory.user_id == current_user.id
     ).first()
 
     if not inventory_item:
-        # Crée un nouvel item dans l'inventaire
         inventory_item = models.Inventory(
             menu_item_id=order.menu_item_id,
             quantity=order.quantity,
@@ -428,13 +463,22 @@ def restock_item(
         )
         db.add(inventory_item)
     else:
-        # Ajoute à la quantité existante
         inventory_item.quantity += order.quantity
 
+    # 6. Logger l'action
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action_type="restock",
+        message=f"Réapprovisionnement : {order.quantity}x {menu_item.name} → -{montant_depense}€",
+        amount=-montant_depense
+    )
+
+    # 7. Sauvegarder TOUT (inventaire + argent user + log)
     db.commit()
     db.refresh(inventory_item)
-    return inventory_item
 
+    return inventory_item
 
 @app.get("/orders")
 def list_orders(
@@ -618,9 +662,6 @@ def get_global_stats(
     }
 
 
-# --------------------------
-# ROUTES ADMIN (suite)
-# --------------------------
 
 @app.get("/admin/orders")
 def list_all_orders(
@@ -706,5 +747,74 @@ def admin_delete_inventory(
             "product_name": menu_item.name if menu_item else "Unknown",
             "quantity": db_item.quantity,
             "owner": user.username if user else "Unknown"
+        }
+    }
+
+
+# --------------------------
+# ROUTES POUR HISTORIQUE DU JOUEUR
+# --------------------------
+@app.get("/game/history")
+def get_game_history(
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+):
+    """Récupère l'historique complet des actions du joueur."""
+
+    # 1. Récupérer tous les logs du joueur
+    logs = db.query(models.GameLog).filter(
+        models.GameLog.user_id == current_user.id
+    ).order_by(
+        models.GameLog.timestamp.desc()  # Plus récent en premier
+    ).all()
+
+    # 2. Retourner
+    return {
+        "player": {
+            "username": current_user.username,
+            "money": current_user.money
+        },
+        "total_actions": len(logs),
+        "history": logs
+    }
+
+
+# --------------------------
+# ROUTES POUR STATISTIQUES DU JOUEUR
+# --------------------------
+
+@app.get("/game/stats")
+def get_game_stats(
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+):
+    """Récupère les statistiques cumulatives du joueur."""
+
+    # Récupérer ou créer PlayerProgress
+    progress = db.query(models.PlayerProgress).filter(
+        models.PlayerProgress.user_id == current_user.id
+    ).first()
+
+    if not progress:
+        # Si le joueur n'a pas encore de stats, en créer
+        progress = models.PlayerProgress(user_id=current_user.id)
+        db.add(progress)
+        db.commit()
+        db.refresh(progress)
+
+    # Calculer le profit net
+    profit = progress.total_money_earned - progress.total_money_spent
+
+    return {
+        "player": {
+            "username": current_user.username,
+            "current_money": current_user.money,
+            "level": progress.current_level
+        },
+        "stats": {
+            "total_money_earned": progress.total_money_earned,
+            "total_money_spent": progress.total_money_spent,
+            "profit": profit,
+            "total_orders": progress.total_orders
         }
     }
