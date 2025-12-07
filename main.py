@@ -1,5 +1,8 @@
 import math
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -30,6 +33,9 @@ Base.metadata.create_all(bind=engine)
 # ----------------------
 app = FastAPI()
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -46,7 +52,6 @@ app.add_middleware(
 # SÉCURITÉ JWT
 # ----------------------
 security = HTTPBearer()
-
 
 def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -89,10 +94,10 @@ def get_current_admin(
 # ----------------------
 # ROUTES SIMPLES / TEST
 # ----------------------
-@app.get("/")
-async def root():
-    """Page d'accueil simple."""
-    return {"message": "Welcome to cafe manager"}
+# @app.get("/")
+# async def root():
+#     """Page d'accueil simple."""
+#     return {"message": "Welcome to cafe manager"}
 
 
 @app.get("/health")
@@ -818,3 +823,93 @@ def get_game_stats(
             "total_orders": progress.total_orders
         }
     }
+
+
+# ==========================================
+# ROUTES INTERFACE WEB
+# ==========================================
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Page d'accueil."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request):
+    """Page d'inscription."""
+    return templates.TemplateResponse("signup.html", {"request": request})
+
+
+@app.post("/signup", response_class=HTMLResponse)
+async def signup_form(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        money: float = Form(1000),
+        db: Session = Depends(get_db)
+):
+    """Traiter le formulaire d'inscription."""
+    # Vérifier si username existe
+    existing_user = db.query(models.User).filter(
+        models.User.username == username
+    ).first()
+
+    if existing_user:
+        return templates.TemplateResponse(
+            "signup.html",
+            {"request": request, "error": "Ce nom d'utilisateur existe déjà"}
+        )
+
+    # Créer le user
+    hashed = hash_password(password)
+    db_user = models.User(
+        username=username,
+        password_hash=hashed,
+        money=money,
+        is_admin=False
+    )
+
+    db.add(db_user)
+    db.commit()
+
+    # Rediriger vers login avec message de succès
+    return RedirectResponse(url="/login?success=1", status_code=303)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, success: int = 0):
+    """Page de connexion."""
+    success_msg = "Compte créé avec succès ! Vous pouvez vous connecter." if success else None
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "success": success_msg}
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+async def login_form(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        db: Session = Depends(get_db)
+):
+    """Traiter le formulaire de connexion."""
+    # Trouver le user
+    user = db.query(models.User).filter(
+        models.User.username == username
+    ).first()
+
+    if not user or not verify_password(password, user.password_hash):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Nom d'utilisateur ou mot de passe incorrect"}
+        )
+
+    # Créer le JWT token
+    access_token = create_access_token(data={"user_id": user.id})
+
+    # Rediriger vers dashboard (qu'on créera demain)
+    response = RedirectResponse(url="/dashboard", status_code=303)
+    response.set_cookie(key="access_token", value=access_token, httponly=True)
+    return response

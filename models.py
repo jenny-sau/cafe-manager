@@ -19,7 +19,8 @@ class MenuItem(Base):
     __tablename__ = "menu_items"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    price = Column(Float)
+    cost_price = Column(Float)  # ← Prix d'achat (fournisseur)
+    selling_price = Column(Float)
 
 
 # --------------------------

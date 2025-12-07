@@ -22,13 +22,12 @@ class UserOut(BaseModel):
 # MENU ITEMS
 # --------------------------
 class MenuItemCreate(BaseModel):
-    """Création d’un produit du menu."""
     name: str
     price: float
 
     @field_validator('price')
     @classmethod
-    def price_must_be_positive(cls, v):
+    def price_must_be_positive(cls, v: float) -> float:
         if v <= 0:
             raise ValueError('Le prix doit être supérieur à 0')
         return v
