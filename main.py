@@ -909,7 +909,105 @@ async def login_form(
     # Créer le JWT token
     access_token = create_access_token(data={"user_id": user.id})
 
-    # Rediriger vers dashboard (qu'on créera demain)
+    # Rediriger vers dashboard
     response = RedirectResponse(url="/dashboard", status_code=303)
     response.set_cookie(key="access_token", value=access_token, httponly=True)
+    return response
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, db: Session = Depends(get_db)):
+    """Page dashboard du joueur."""
+    token = request.cookies.get("access_token")
+
+    if not token:
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        payload = decode_access_token(token)
+        user_id = payload["user_id"]
+
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+
+        if not user:
+            return RedirectResponse(url="/login", status_code=303)
+
+        progress = db.query(models.PlayerProgress).filter(
+            models.PlayerProgress.user_id == user.id
+        ).first()
+
+        if not progress:
+            progress = models.PlayerProgress(
+                user_id=user.id,
+                total_money_earned=0.0,
+                total_orders=0,
+                current_level=1,
+                total_money_spent=0.0
+            )
+            db.add(progress)
+            db.commit()
+            db.refresh(progress)
+
+        level_requirements = {
+            1: {"money": 100, "orders": 10},
+            2: {"money": 500, "orders": 50},
+            3: {"money": 2000, "orders": 200},
+            4: {"money": 10000, "orders": 1000},
+        }
+
+        next_level = progress.current_level + 1 if progress.current_level < 5 else 5
+        next_requirements = level_requirements.get(progress.current_level, {"money": 10000, "orders": 1000})
+
+        money_percent = min(100, (progress.total_money_earned / next_requirements["money"]) * 100)
+        orders_percent = min(100, (progress.total_orders / next_requirements["orders"]) * 100)
+
+        can_level_up = (progress.total_money_earned >= next_requirements["money"] and
+                        progress.total_orders >= next_requirements["orders"])
+
+        notifications = []
+
+        inventory = db.query(models.Inventory).filter(
+            models.Inventory.user_id == user.id,
+            models.Inventory.quantity < 10
+        ).all()
+
+        for inv in inventory:
+            menu_item = db.query(models.MenuItem).filter(
+                models.MenuItem.id == inv.menu_item_id
+            ).first()
+            if menu_item:
+                notifications.append({
+                    "type": "warning",
+                    "message": f"⚠️ Stock faible : {menu_item.name} ({inv.quantity} unités)"
+                })
+
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "player": {
+                "username": user.username,
+                "money": round(user.money, 2),
+                "level": progress.current_level
+            },
+            "progress": {
+                "earned": round(progress.total_money_earned, 2),
+                "orders": progress.total_orders,
+                "next_level_money": next_requirements["money"],
+                "next_level_orders": next_requirements["orders"],
+                "money_percent": round(money_percent, 2),
+                "orders_percent": round(orders_percent, 2),
+                "can_level_up": can_level_up
+            },
+            "notifications": notifications
+        })
+
+    except Exception as e:
+        print(f"Erreur dashboard: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/logout")
+async def logout():
+    """Déconnexion."""
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("access_token")
     return response

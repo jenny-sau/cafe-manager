@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Café Manager</title>
+
+    <!-- Police retro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <h2>☕ CAFE MANAGER</h2>
+            <div class="nav-links">
+                <a href="/dashboard" class="active">DASHBOARD</a>
+                <a href="/stock">STOCK</a>
+                <a href="/stats">STATS</a>
+                <a href="/history">HISTORIQUE</a>
+                <a href="/logout" class="logout">DECONNEXION</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Container principal -->
+    <div class="dashboard-container">
+
+        <!-- Cartes d'infos joueur -->
+        <div class="player-info">
+            <div class="info-card">
+                <div class="icon">👤</div>
+                <div>
+                    <p class="label">JOUEUR</p>
+                    <p class="value">{{ player.username }}</p>
+                </div>
+            </div>
+
+            <div class="info-card money">
+                <div class="icon">💰</div>
+                <div>
+                    <p class="label">ARGENT</p>
+                    <p class="value">{{ player.money }}€</p>
+                </div>
+            </div>
+
+            <div class="info-card level">
+                <div class="icon">⭐</div>
+                <div>
+                    <p class="label">NIVEAU</p>
+                    <p class="value">{{ player.level }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carte de progression -->
+        <div class="progress-card">
+            <h3>🎯 PROGRESSION NIVEAU {{ player.level + 1 }}</h3>
+
+            <div class="progress-info">
+                <div>
+                    <p>💰 ARGENT : {{ progress.earned }}/{{ progress.next_level_money }}€</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ progress.money_percent }}%"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <p>📦 COMMANDES : {{ progress.orders }}/{{ progress.next_level_orders }}</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ progress.orders_percent }}%"></div>
+                    </div>
+                </div>
+            </div>
+
+            {% if progress.can_level_up %}
+            <p class="level-up-message">🎉 NIVEAU SUIVANT DEBLOQUE !</p>
+            {% endif %}
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="quick-actions">
+            <h3>⚡ ACTIONS RAPIDES</h3>
+            <div class="action-grid">
+
+                <a href="/stock" class="action-btn">
+                    <span class="action-icon">📦</span>
+                    <span class="action-title">MON STOCK</span>
+                    <span class="action-desc">GERER INVENTAIRE</span>
+                </a>
+
+                <a href="/restock" class="action-btn">
+                    <span class="action-icon">🛒</span>
+                    <span class="action-title">REAPPRO</span>
+                    <span class="action-desc">ACHETER PRODUITS</span>
+                </a>
+
+                <a href="/stats" class="action-btn">
+                    <span class="action-icon">📊</span>
+                    <span class="action-title">STATS</span>
+                    <span class="action-desc">PERFORMANCES</span>
+                </a>
+
+                <a href="/history" class="action-btn">
+                    <span class="action-icon">📜</span>
+                    <span class="action-title">HISTORIQUE</span>
+                    <span class="action-desc">JOURNAL ACTIONS</span>
+                </a>
+
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        {% if notifications %}
+        <div class="notifications">
+            <h3>🔔 NOTIFICATIONS</h3>
+            {% for notif in notifications %}
+            <div class="notification {{ notif.type }}">
+                {{ notif.message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Lecteur audio avec bouton -->
+    <audio id="bg-music" loop>
+        <source src="/static/music/lofi-cafe.mp3" type="audio/mpeg">
+    </audio>
+
+    <button id="music-toggle">
+        🎵 PLAY
+    </button>
+
+    <script>
+        const music = document.getElementById('bg-music');
+        const toggleBtn = document.getElementById('music-toggle');
+        let isPlaying = false;
+
+        // Charger l'état sauvegardé
+        const savedTime = localStorage.getItem('musicTime');
+        const savedPlaying = localStorage.getItem('musicPlaying');
+
+        if (savedTime) {
+            music.currentTime = parseFloat(savedTime);
+        }
+
+        if (savedPlaying === 'true') {
+            music.play().then(() => {
+                isPlaying = true;
+                toggleBtn.textContent = '🔇 PAUSE';
+            }).catch(() => {});
+        }
+
+        // Sauvegarder la position toutes les secondes
+        setInterval(() => {
+            if (isPlaying) {
+                localStorage.setItem('musicTime', music.currentTime);
+            }
+        }, 1000);
+
+        // Toggle play/pause
+        toggleBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                music.pause();
+                isPlaying = false;
+                toggleBtn.textContent = '🎵 PLAY';
+                localStorage.setItem('musicPlaying', 'false');
+            } else {
+                music.play();
+                isPlaying = true;
+                toggleBtn.textContent = '🔇 PAUSE';
+                localStorage.setItem('musicPlaying', 'true');
+            }
+        });
+    </script>
+
+</body>
+</html>
