@@ -1,10 +1,157 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock - Café Manager</title>
+
+    <!-- Police retro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+
+    <!-- CSS INLINE pour les tailles -->
+    <style>
+        .product-name {
+            font-size: 20px !important;
+            margin-bottom: 15px !important;
+        }
+
+        .product-info {
+            margin: 15px 0 !important;
+        }
+
+        .product-detail {
+            font-size: 16px !important;
+            margin: 5px 0 !important;
+            line-height: 1.8 !important;
+        }
+
+        .stock-badge {
+            font-size: 8px !important;
+            padding: 8px 12px !important;
+            margin: 10px 0 !important;
+        }
+    </style>
 </head>
 <body>
-$END$
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <h2>☕ CAFE MANAGER</h2>
+            <div class="nav-links">
+                <a href="/dashboard">DASHBOARD</a>
+                <a href="/stock" class="active">STOCK</a>
+                <a href="/stats">STATS</a>
+                <a href="/logout" class="logout">DECONNEXION</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Container principal -->
+    <div class="dashboard-container">
+
+        <!-- Infos joueur -->
+        <div class="player-info">
+            <div class="info-card">
+                <div class="icon">👤</div>
+                <div>
+                    <p class="label">JOUEUR</p>
+                    <p class="value">{{ player.username }}</p>
+                </div>
+            </div>
+
+            <div class="info-card money">
+                <div class="icon">💰</div>
+                <div>
+                    <p class="label">ARGENT</p>
+                    <p class="value">{{ player.money }}€</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section stock -->
+        <div class="quick-actions">
+            <h3>📦 MON STOCK</h3>
+
+            <!-- Message si vide -->
+            {% if stock_items|length == 0 %}
+                <div class="notification warning">
+                    📭 Aucun produit en stock ! Allez dans REAPPRO pour acheter des produits.
+                </div>
+            {% else %}
+                <!-- Grille de produits -->
+                <div class="action-grid">
+                    {% for item in stock_items %}
+                        <div class="product-card">
+                            <h4 class="product-name">{{ item.name }}</h4>
+
+                            <div class="product-info">
+                                <p class="product-detail">STOCK : {{ item.quantity }}</p>
+                                <p class="product-detail">PRIX : {{ item.price }}€</p>
+                            </div>
+
+                            {% if item.status == "low" %}
+                                <span class="stock-badge low">⚠️ FAIBLE</span>
+                            {% else %}
+                                <span class="stock-badge ok">✓ OK</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- Lecteur audio -->
+    <audio id="bg-music" loop>
+        <source src="/static/music/lofi-cafe.mp3" type="audio/mpeg">
+    </audio>
+
+    <button id="music-toggle">🎵 PLAY</button>
+
+    <script>
+        const music = document.getElementById('bg-music');
+        const toggleBtn = document.getElementById('music-toggle');
+        let isPlaying = false;
+
+        const savedTime = localStorage.getItem('musicTime');
+        const savedPlaying = localStorage.getItem('musicPlaying');
+
+        if (savedTime) {
+            music.currentTime = parseFloat(savedTime);
+        }
+
+        if (savedPlaying === 'true') {
+            music.play().then(() => {
+                isPlaying = true;
+                toggleBtn.textContent = '🔇 PAUSE';
+            }).catch(() => {});
+        }
+
+        setInterval(() => {
+            if (isPlaying) {
+                localStorage.setItem('musicTime', music.currentTime);
+            }
+        }, 1000);
+
+        toggleBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                music.pause();
+                isPlaying = false;
+                toggleBtn.textContent = '🎵 PLAY';
+                localStorage.setItem('musicPlaying', 'false');
+            } else {
+                music.play();
+                isPlaying = true;
+                toggleBtn.textContent = '🔇 PAUSE';
+                localStorage.setItem('musicPlaying', 'true');
+            }
+        });
+    </script>
+
 </body>
 </html>

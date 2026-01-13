@@ -3,7 +3,7 @@ from jose import jwt
 from datetime import datetime, timedelta
 
 # Configuration JWT
-SECRET_KEY = "votre-cle-secrete-ultra-secure-changez-moi"  # ⚠️ À changer en production !
+SECRET_KEY = "votre-cle-secrete-ultra-secure-changez-moi"  # À changer en production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 

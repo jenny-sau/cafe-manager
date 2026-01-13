@@ -1,6 +1,9 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean, DateTime
+from enum import Enum as PyEnum
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean, DateTime, Enum
+from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
+
 
 # --------------------------
 # UTILISATEUR
@@ -12,6 +15,14 @@ class User(Base):
     password_hash = Column(String)
     money = Column(Float, default=0.0)
     is_admin = Column(Boolean, default=False)
+
+    # Relations
+    orders = relationship("Order", back_populates="user")
+    inventory_items = relationship("Inventory", back_populates="user")
+    game_logs = relationship("GameLog", back_populates="user")
+    player_progress = relationship("PlayerProgress", back_populates="user", uselist=False)
+
+
 # --------------------------
 # MENU
 # --------------------------
@@ -19,8 +30,11 @@ class MenuItem(Base):
     __tablename__ = "menu_items"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    cost_price = Column(Float)  # ← Prix d'achat (fournisseur)
-    selling_price = Column(Float)
+    purchase_price = Column(Float, nullable=False)
+    selling_price = Column(Float, nullable=False)
+
+    inventory_items = relationship("Inventory", back_populates="menu_item")
+    orders = relationship("Order", back_populates="menu_item")
 
 
 # --------------------------
@@ -29,32 +43,53 @@ class MenuItem(Base):
 class Inventory(Base):
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True, index=True)
-    menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
+    menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False)
     quantity = Column(Integer, default=0)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Relations
+    user = relationship("User", back_populates="inventory_items")
+    menu_item = relationship("MenuItem", back_populates="inventory_items")
+
 
 # --------------------------
 # Commandes
 # --------------------------
+class OrderStatus(str, PyEnum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
 class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
     quantity = Column(Integer)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    status = Column(Enum(OrderStatus), default=OrderStatus.PENDING,  nullable=False)
+
+    # Relations
+    user = relationship("User", back_populates="orders")
+    menu_item = relationship("MenuItem", back_populates="orders")
+
 
 # --------------------------
 # GameLog -> Pour l'historique du joueur
 # --------------------------
-class GameLog (Base):
-    __tablename__ ="gameLog"
+class GameLog(Base):
+    __tablename__ = "gamelog"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     action_type = Column(String)
-    message = Column(String) # Exemple : "Commande client : 2 cafés → +6€"
-    amount = Column(Float, nullable=True) #L'argent impliqué dans l'action (peut être NULL)
+    message = Column(String)
+    amount = Column(Float, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+    # Relation
+    user = relationship("User", back_populates="game_logs")
 
 
 # --------------------------
@@ -70,3 +105,5 @@ class PlayerProgress(Base):
     current_level = Column(Integer, default=1)
     total_money_spent = Column(Float, default=0.0)
 
+    # Relation
+    user = relationship("User", back_populates="player_progress")

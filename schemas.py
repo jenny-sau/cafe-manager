@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
+from typing import Optional
 
 # --------------------------
 # UTILISATEUR
@@ -17,15 +18,20 @@ class UserOut(BaseModel):
     money: float
     model_config = {"from_attributes": True}
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    money: Optional[int] = None
+
 
 # --------------------------
 # MENU ITEMS
 # --------------------------
 class MenuItemCreate(BaseModel):
     name: str
-    price: float
+    purchase_price: float
+    selling_price: float
 
-    @field_validator('price')
+    @field_validator('purchase_price', 'selling_price')
     @classmethod
     def price_must_be_positive(cls, v: float) -> float:
         if v <= 0:
@@ -36,10 +42,29 @@ class MenuItemCreate(BaseModel):
 class MenuItemOut(BaseModel):
     id: int
     name: str
-    price: float
+    purchase_price: float
+    selling_price: float
     model_config = {"from_attributes": True}
 
+class MenuItemWithStock(BaseModel):
+    id: int
+    name: str
+    purchase_price: float
+    selling_price: float
+    stock: int
+    available: str
 
+class MenuListResponse(BaseModel):
+    page: int
+    limit: int
+    total_items: int
+    total_pages: int
+    items: list[MenuItemWithStock]
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str]= None
+    purchase_price: Optional[float] = None
+    selling_price: Optional[float] = None
 # --------------------------
 # INVENTAIRE
 # --------------------------

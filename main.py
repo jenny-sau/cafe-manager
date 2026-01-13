@@ -7,8 +7,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from schemas import (
-    UserCreate, UserOut,
-    MenuItemCreate, MenuItemOut,
+    UserCreate, UserOut, UserUpdate,
+    MenuItemCreate, MenuItemOut, MenuListResponse, MenuItemWithStock, MenuItemUpdate,
     InventoryCreate, InventoryOut, InventoryUpdate,
     OrderCreate, OrderRead,
     UserSignup, UserResponse, UserLogin,
@@ -109,19 +109,12 @@ async def health():
 # ----------------------
 # CRUD UTILISATEURS
 # ----------------------
-@app.post("/users", response_model=UserOut)
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Crée un nouvel utilisateur."""
-    db_user = models.User(username=user.username, money=user.money)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-
 @app.get("/users/{user_id}", response_model=UserOut)
-def read_user(user_id: int, db: Session = Depends(get_db)):
-    """Récupère un utilisateur par son ID."""
+def read_user(user_id: int,
+              db: Session = Depends(get_db),
+              admin: models.User = Depends(get_current_admin)
+):
+    """Récupère un utilisateur par son ID (admin uniquement)."""
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -129,21 +122,32 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/users/{user_id}", response_model=UserOut)
-def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
-    """Modifie un utilisateur existant."""
+def update_user(
+    user_id: int,
+    user: UserUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Modifie un utilisateur existant (admin uniquement)."""
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    db_user.username = user.username
-    db_user.money = user.money
+    if user.username is not None:
+        db_user.username = user.username
+
+    if user.money is not None:
+        db_user.money = user.money
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
-    """Supprime un utilisateur."""
+def delete_user(user_id: int,
+                db: Session = Depends(get_db),
+                admin: models.User = Depends(get_current_admin)
+):
+    """Supprime un utilisateur (admin uniquemment)."""
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -151,14 +155,16 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "User deleted"}
 
-
 # ----------------------
 # CRUD MENU
 # ----------------------
 @app.post("/menu", response_model=MenuItemOut)
-def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
-    """Crée un nouvel item du menu."""
-    db_menu_item = models.MenuItem(name=item.name, price=item.price)
+def create_menu_item(item: MenuItemCreate,
+                     db: Session = Depends(get_db),
+                     admin: models.User = Depends(get_current_admin)
+):
+    """Crée un nouvel item du menu (admin uniquement)."""
+    db_menu_item = models.MenuItem(name=item.name, purchase_price=item.purchase_price, selling_price= item.selling_price)
     db.add(db_menu_item)
     db.commit()
     db.refresh(db_menu_item)
@@ -166,18 +172,22 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/menu/{menu_id}", response_model=MenuItemOut)
-def read_menu_item(menu_id: int, db: Session = Depends(get_db)):
+def read_menu_item(menu_id: int,
+                   db: Session = Depends(get_db),
+                   current_user: models.User = Depends(get_current_user)
+):
     """Récupère un item du menu par son ID."""
     menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
     return menu_item
 
-@app.get("/menu")
+@app.get("/menu", response_model=MenuListResponse)
 def list_menu(
         page: int = 1,
         limit: int = 20,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
 ):
     """Liste tous les items du menu avec pagination."""
     skip = (page - 1) * limit
@@ -195,7 +205,8 @@ def list_menu(
         product_info = {
             "id": item.id,
             "name": item.name,
-            "price": item.price,
+            "purchase_price": item.purchase_price,
+            "selling_price": item.selling_price,
             "stock": stock.quantity if stock else 0,
             "available": "available" if stock and stock.quantity > 0 else "unavailable"
         }
@@ -211,21 +222,33 @@ def list_menu(
     }
 
 @app.put("/menu/{menu_id}", response_model=MenuItemOut)
-def update_menu_item(menu_id: int, menu_item: MenuItemCreate, db: Session = Depends(get_db)):
-    """Modifie un item du menu existant."""
+def update_menu_item(menu_id: int,
+                     menu_item: MenuItemUpdate,
+                     db: Session = Depends(get_db),
+                     admin: models.User = Depends(get_current_admin)
+):
+    """Modifie un item du menu existant (admin uniquement)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not db_menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
-    db_menu_item.name = menu_item.name
-    db_menu_item.price = menu_item.price
+    if menu_item.name is not None:
+        db_menu_item.name = menu_item.name
+    if menu_item.purchase_price is not None:
+        db_menu_item.purchase_price = menu_item.purchase_price
+    if menu_item.selling_price is not None:
+        db_menu_item.selling_price = menu_item.selling_price
+
     db.commit()
     db.refresh(db_menu_item)
     return db_menu_item
 
 
 @app.delete("/menu/{menu_id}")
-def delete_menu_item(menu_id: int, db: Session = Depends(get_db)):
-    """Supprime un item du menu."""
+def delete_menu_item(menu_id: int,
+                     db: Session = Depends(get_db),
+                     admin: models.User = Depends(get_current_admin)
+):
+    """Supprime un item du menu (admin uniquement)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not db_menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
@@ -233,42 +256,9 @@ def delete_menu_item(menu_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Menu item deleted"}
 
-
 # ----------------------
 # CRUD INVENTAIRE (PROTÉGÉ)
 # ----------------------
-@app.post("/inventory", response_model=InventoryOut)
-def create_inventory(
-        inventory: InventoryCreate,
-        db: Session = Depends(get_db),
-        current_user: models.User = Depends(get_current_user)
-):
-    """Crée un nouvel inventaire (nécessite authentification)."""
-
-    #Vérifier si l'item existe déjà
-    existing_item = db.query(models.Inventory).filter(
-        models.Inventory.menu_item_id == inventory.menu_item_id,
-        models.Inventory.user_id == current_user.id
-    ).first()
-
-    if existing_item:
-        # Si existe, additionner
-        existing_item.quantity += inventory.quantity
-        db.commit()
-        db.refresh(existing_item)
-        return existing_item
-    else:
-        # Sinon, créer nouveau
-        db_inventory = models.Inventory(
-            menu_item_id=inventory.menu_item_id,
-            quantity=inventory.quantity,
-            user_id=current_user.id
-        )
-        db.add(db_inventory)
-        db.commit()
-        db.refresh(db_inventory)
-        return db_inventory
-
 @app.get("/inventory")
 def list_inventory(
         db: Session = Depends(get_db),
@@ -287,14 +277,14 @@ def list_inventory(
     for inv in inventory_items:
         # Récupère le menu_item correspondant
         menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == inv.menu_item_id  # ← Correction 1
+            models.MenuItem.id == inv.menu_item_id
         ).first()
 
-        # Calcule la valeur totale
-        total_value = inv.quantity * menu_item.price if menu_item else 0  # ← Correction 2
+        if menu_item is None:
+            continue
 
         # Détermine le statut
-        status = "low_stock" if inv.quantity < 10 else "ok"  # ← Correction 3
+        status = "low_stock" if inv.quantity < 10 else "ok"
 
         # Crée le dictionnaire
         product_info = {
@@ -302,8 +292,6 @@ def list_inventory(
             "menu_item_id": inv.menu_item_id,
             "product_name": menu_item.name if menu_item else "Unknown",
             "quantity": inv.quantity,
-            "unit_price": menu_item.price if menu_item else 0,
-            "total_value": round(total_value, 2),  # Arrondi à 2 décimales
             "status": status
         }
 
@@ -327,24 +315,18 @@ def list_inventory(
     }
 
 @app.get("/inventory/{item_id}", response_model=InventoryOut)
-def read_inventory(item_id: int, db: Session = Depends(get_db)):
+def read_inventory(item_id: int,
+                   db: Session = Depends(get_db),
+                   current_user: models.User = Depends(get_current_user)
+):
     """Récupère un item d'inventaire par son ID."""
-    item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+    item = db.query(models.Inventory).filter(
+        models.Inventory.id == item_id,
+        models.Inventory.user_id == current_user.id
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
-
-
-@app.put("/inventory/{item_id}", response_model=InventoryOut)
-def update_inventory(item_id: int, inventory: InventoryUpdate, db: Session = Depends(get_db)):
-    """Met à jour la quantité d'un item d'inventaire."""
-    db_item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    db_item.quantity = inventory.quantity
-    db.commit()
-    db.refresh(db_item)
-    return db_item
 
 
 @app.delete("/inventory/{item_id}")
@@ -402,7 +384,7 @@ def order_for_client(
     db.add(db_order)
 
     # 6. Calculer et ajouter l'argent au joueur
-    montant_gagne = menu_item.price * order.quantity
+    montant_gagne = menu_item.selling_price * order.quantity
     current_user.money += montant_gagne
 
     # 7. Logger l'action
@@ -425,8 +407,59 @@ def order_for_client(
             "quantity": db_order.quantity,
             "user_id": db_order.user_id
         },
-        "message": f"✅ Vente : {order.quantity}x {menu_item.name} → +{montant_gagne:.2f}€ | Stock restant : {inventory_item.quantity} | Argent : {current_user.money:.2f}€"
+        "message": f"Vente : {order.quantity}x {menu_item.name} → +{montant_gagne:.2f}€ | Stock restant : {inventory_item.quantity} | Argent : {current_user.money:.2f}€"
     }
+
+@app.post("/orders/{order_id}/complete")
+def complete_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your order")
+
+    if order.status != models.OrderStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Order is not pending")
+
+    inventory = db.query(models.Inventory).filter(
+        models.Inventory.user_id == current_user.id,
+        models.Inventory.menu_item_id == order.menu_item_id
+    ).first()
+
+    if not inventory:
+        raise HTTPException(status_code=400, detail="No inventory for this item")
+
+    if inventory.quantity < order.quantity:
+        raise HTTPException(status_code=400, detail="Not enough stock")
+
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == order.menu_item_id
+    ).first()
+
+    try:
+        order.status = models.OrderStatus.COMPLETED
+        inventory.quantity -= order.quantity
+        current_user.money += menu_item.selling_price * order.quantity
+
+        db.commit()
+    except:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Order processing failed")
+
+    return {
+        "message": "Order completed",
+        "order_id": order.id,
+        "new_balance": current_user.money
+    }
+
+
+
 # ----------------------
 # RÉAPPROVISIONNEMENT PAR LE JOUEUR (PROTÉGÉ)
 # ----------------------
@@ -436,6 +469,11 @@ def restock_item(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
+    """
+        Passe une commande pour le café (nécessite authentification).
+        Augmente le stock si la quantité est disponible.
+        Diminue l'argent au joueur et log l'action.
+        """
     # 1. Récupérer le menu_item pour avoir le prix
     menu_item = db.query(models.MenuItem).filter(
         models.MenuItem.id == order.menu_item_id
@@ -445,7 +483,7 @@ def restock_item(
         raise HTTPException(status_code=404, detail="Produit non trouvé")
 
     # 2. Calculer le coût
-    montant_depense = menu_item.price * order.quantity
+    montant_depense = menu_item.purchase_price * order.quantity
 
     # 3. Vérifier que le joueur a assez d'argent
     if current_user.money < montant_depense:
@@ -829,19 +867,19 @@ def get_game_stats(
 # ROUTES INTERFACE WEB
 # ==========================================
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def home(request: Request):
     """Page d'accueil."""
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/signup", response_class=HTMLResponse)
+@app.get("/signup", response_class=HTMLResponse, include_in_schema=False)
 async def signup_page(request: Request):
     """Page d'inscription."""
     return templates.TemplateResponse("signup.html", {"request": request})
 
 
-@app.post("/signup", response_class=HTMLResponse)
+@app.post("/signup", response_class=HTMLResponse, include_in_schema=False)
 async def signup_form(
         request: Request,
         username: str = Form(...),
@@ -850,7 +888,6 @@ async def signup_form(
         db: Session = Depends(get_db)
 ):
     """Traiter le formulaire d'inscription."""
-    # Vérifier si username existe
     existing_user = db.query(models.User).filter(
         models.User.username == username
     ).first()
@@ -861,7 +898,6 @@ async def signup_form(
             {"request": request, "error": "Ce nom d'utilisateur existe déjà"}
         )
 
-    # Créer le user
     hashed = hash_password(password)
     db_user = models.User(
         username=username,
@@ -873,11 +909,10 @@ async def signup_form(
     db.add(db_user)
     db.commit()
 
-    # Rediriger vers login avec message de succès
     return RedirectResponse(url="/login?success=1", status_code=303)
 
 
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(request: Request, success: int = 0):
     """Page de connexion."""
     success_msg = "Compte créé avec succès ! Vous pouvez vous connecter." if success else None
@@ -887,7 +922,7 @@ async def login_page(request: Request, success: int = 0):
     )
 
 
-@app.post("/login", response_class=HTMLResponse)
+@app.post("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_form(
         request: Request,
         username: str = Form(...),
@@ -895,7 +930,6 @@ async def login_form(
         db: Session = Depends(get_db)
 ):
     """Traiter le formulaire de connexion."""
-    # Trouver le user
     user = db.query(models.User).filter(
         models.User.username == username
     ).first()
@@ -906,16 +940,14 @@ async def login_form(
             {"request": request, "error": "Nom d'utilisateur ou mot de passe incorrect"}
         )
 
-    # Créer le JWT token
     access_token = create_access_token(data={"user_id": user.id})
 
-    # Rediriger vers dashboard
     response = RedirectResponse(url="/dashboard", status_code=303)
     response.set_cookie(key="access_token", value=access_token, httponly=True)
     return response
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     """Page dashboard du joueur."""
     token = request.cookies.get("access_token")
@@ -978,7 +1010,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             if menu_item:
                 notifications.append({
                     "type": "warning",
-                    "message": f"⚠️ Stock faible : {menu_item.name} ({inv.quantity} unités)"
+                    "message": f" Stock faible : {menu_item.name} ({inv.quantity} unités)"
                 })
 
         return templates.TemplateResponse("dashboard.html", {
@@ -1005,9 +1037,122 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login", status_code=303)
 
 
-@app.get("/logout")
+@app.get("/logout", include_in_schema=False)
 async def logout():
     """Déconnexion."""
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie("access_token")
     return response
+
+
+@app.get("/stock", response_class=HTMLResponse, include_in_schema=False)
+async def stock(request: Request, db: Session = Depends(get_db)):
+    """Page de gestion du stock."""
+    token = request.cookies.get("access_token")
+
+    if not token:
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        # Décoder le token
+        payload = decode_access_token(token)
+        user_id = payload["user_id"]
+
+        # Récupérer le user
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+
+        if not user:
+            return RedirectResponse(url="/login", status_code=303)
+
+        # Récupérer l'inventaire
+        inventory = db.query(models.Inventory).filter(
+            models.Inventory.user_id == user.id
+        ).all()
+
+        # Enrichir avec les détails du menu
+        stock_items = []
+        for inv in inventory:
+            menu_item = db.query(models.MenuItem).filter(
+                models.MenuItem.id == inv.menu_item_id
+            ).first()
+
+            if menu_item:
+                stock_items.append({
+                    "id": inv.id,
+                    "menu_item_id": inv.menu_item_id,
+                    "name": menu_item.name,
+                    "quantity": inv.quantity,
+                    "status": "low" if inv.quantity < 10 else "ok"
+                })
+
+        return templates.TemplateResponse("stock.html", {
+            "request": request,
+            "player": {
+                "username": user.username,
+                "money": round(user.money, 2)
+            },
+            "stock_items": stock_items
+        })
+
+    except Exception as e:
+        print(f"Erreur stock: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/stats", response_class=HTMLResponse, include_in_schema=False)
+async def stats(request: Request, db: Session = Depends(get_db)):
+    """Page stats"""
+    token = request.cookies.get("access_token")
+
+    if not token:
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        # Décoder le token
+        payload = decode_access_token(token)
+        user_id = payload["user_id"]
+
+        # Récupérer le user
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+
+        if not user:
+            return RedirectResponse(url="/login", status_code=303)
+
+        # Récupérer les stats
+        progress = db.query(models.PlayerProgress).filter(
+            models.PlayerProgress.user_id == user.id
+        ).first()
+
+        if not progress:
+            progress = models.PlayerProgress(
+                user_id=user.id,
+                total_money_earned=0.0,
+                total_orders=0,
+                current_level=1,
+                total_money_spent=0.0
+            )
+            db.add(progress)
+            db.commit()
+            db.refresh(progress)
+
+        # Calculer le profit
+        profit = progress.total_money_earned - progress.total_money_spent
+
+        return templates.TemplateResponse("stats.html", {
+            "request": request,
+            "player": {
+                "username": user.username,
+                "money": round(user.money, 2),
+                "level": progress.current_level
+            },
+            "stats": {
+                "total_earned": round(progress.total_money_earned, 2),
+                "total_spent": round(progress.total_money_spent, 2),
+                "profit": round(profit, 2),
+                "total_orders": progress.total_orders
+            }
+        })
+
+    except Exception as e:
+        print(f"Erreur stats: {e}")
+        return RedirectResponse(url="/login", status_code=303)
