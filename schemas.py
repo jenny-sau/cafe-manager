@@ -1,6 +1,7 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional
+from enum import Enum
 
 # --------------------------
 # UTILISATEUR
@@ -22,7 +23,9 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     money: Optional[int] = None
 
-
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 # --------------------------
 # MENU ITEMS
 # --------------------------
@@ -81,11 +84,19 @@ class InventoryCreate(BaseModel):
         return v
 
 
-class InventoryOut(BaseModel):
+class InventoryItemOut(BaseModel):
     id: int
     menu_item_id: int
     quantity: int
     model_config = {"from_attributes": True}
+
+class InventoryItemPlayerOut(BaseModel):
+    menu_item_id: int
+    product_name: str
+    quantity: int
+
+class InventoryOut(BaseModel):
+    items: list[InventoryItemPlayerOut]
 
 
 class InventoryUpdate(BaseModel):
@@ -103,6 +114,11 @@ class InventoryUpdate(BaseModel):
 # --------------------------
 # COMMANDES
 # --------------------------
+class OrderStatusEnum(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
 class OrderCreate(BaseModel):
     """Commande client ou réapprovisionnement joueur."""
     menu_item_id: int
@@ -115,14 +131,23 @@ class OrderCreate(BaseModel):
             raise ValueError('La quantité doit être supérieure à 0')
         return v
 
-
-class OrderRead(BaseModel):
+class OrderOut(BaseModel):
+    """Retourner une commande (version simplifiée pour les réponses)."""
     id: int
     menu_item_id: int
+    menu_item_name: str
     quantity: int
+    status: OrderStatusEnum
+
     model_config = {"from_attributes": True}
 
-
+class PaginatedOrdersOut(BaseModel):
+    """Liste paginée de commandes."""
+    page: int
+    limit: int
+    total_items: int
+    total_pages: int
+    items: list[OrderOut]
 # --------------------------
 # AUTHENTIFICATION
 # --------------------------

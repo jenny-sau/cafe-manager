@@ -7,12 +7,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from schemas import (
-    UserCreate, UserOut, UserUpdate,
+    UserCreate, UserOut, UserUpdate, TokenOut,
     MenuItemCreate, MenuItemOut, MenuListResponse, MenuItemWithStock, MenuItemUpdate,
-    InventoryCreate, InventoryOut, InventoryUpdate,
-    OrderCreate, OrderRead,
+    InventoryCreate, InventoryItemOut, InventoryItemPlayerOut, InventoryOut, InventoryUpdate,
+    OrderCreate, OrderOut, OrderStatusEnum,
     UserSignup, UserResponse, UserLogin,
-    GameLogOut
+    GameLogOut, PaginatedOrdersOut
 )
 from database import Base, engine, get_db
 import models
@@ -21,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from game_utils import log_action
 
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
@@ -92,6 +91,44 @@ def get_current_admin(
     return current_user
 
 # ----------------------
+# LOGS & STATS
+# ----------------------
+def log_action(
+    db: Session,
+    user_id: int,
+    action_type: str,
+    message: str,
+    amount: float = 0.0
+):
+    log = models.GameLog(
+        user_id=user_id,
+        action_type=action_type,
+        message=message,
+        amount=amount
+    )
+    db.add(log)
+
+    progress = db.query(models.PlayerProgress).filter(
+        models.PlayerProgress.user_id == user_id
+    ).first()
+
+    if not progress:
+        progress = models.PlayerProgress(
+            user_id=user_id,
+            total_money_earned=0.0,
+            total_money_spent=0.0,
+            total_orders=0,
+            current_level=1
+        )
+        db.add(progress)
+
+    if amount > 0:
+        progress.total_money_earned += amount
+        progress.total_orders += 1
+    else:
+        progress.total_money_spent += abs(amount)
+
+# ----------------------
 # ROUTES SIMPLES / TEST
 # ----------------------
 # @app.get("/")
@@ -105,21 +142,101 @@ async def health():
     """Vérifie que l'application fonctionne."""
     return {"status": "ok"}
 
+# --------------------------
+# AUTHENTIFICATION
+# --------------------------
+@app.post("/auth/signup", response_model=UserResponse)
+@limiter.limit("5/minute") # Maximum 5 signups par minute
+def signup(
+        request: Request,
+        user: UserSignup, db: Session = Depends(get_db)
+):
+    """Créer un nouveau compte utilisateur."""
+    existing_user = db.query(models.User).filter(
+        models.User.username == user.username
+    ).first()
+
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username déjà pris")
+
+    hashed = hash_password(user.password)
+
+    db_user = models.User(
+        username=user.username,
+        password_hash=hashed,
+        money=user.money,
+        is_admin = user.is_admin
+    )
+
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    return db_user
+
+@app.post("/auth/login", response_model=TokenOut)
+def login(
+        credentials: UserLogin,
+        db: Session = Depends(get_db)
+):
+    """Se connecter et recevoir un JWT token."""
+
+    user = db.query(models.User).filter(
+        models.User.username == credentials.username
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Username ou password incorrect")
+
+    if not verify_password(credentials.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Username ou password incorrect")
+
+    token = create_access_token(data={"user_id": user.id})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 # ----------------------
 # CRUD UTILISATEURS
 # ----------------------
 @app.get("/users/{user_id}", response_model=UserOut)
-def read_user(user_id: int,
-              db: Session = Depends(get_db),
-              admin: models.User = Depends(get_current_admin)
+def read_user(
+        user_id: int,
+        db: Session = Depends(get_db),
+        admin: models.User = Depends(get_current_admin)
 ):
     """Récupère un utilisateur par son ID (admin uniquement)."""
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
     return user
 
+@app.get("/users")
+def list_all_users(
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)
+):
+    """Liste tous les utilisateurs (admin uniquement)."""
+    users = db.query(models.User).all()
+
+    users_list = []
+    for user in users:
+        users_list.append({
+            "id": user.id,
+            "username": user.username,
+            "money": user.money,
+            "is_admin": user.is_admin
+        })
+
+    return {
+        "total_users": len(users_list),
+        "users": users_list
+    }
 
 @app.put("/users/{user_id}", response_model=UserOut)
 def update_user(
@@ -137,15 +254,17 @@ def update_user(
 
     if user.money is not None:
         db_user.money = user.money
+
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: int,
-                db: Session = Depends(get_db),
-                admin: models.User = Depends(get_current_admin)
+def delete_user(
+        user_id: int,
+        db: Session = Depends(get_db),
+        admin: models.User = Depends(get_current_admin)
 ):
     """Supprime un utilisateur (admin uniquemment)."""
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -159,12 +278,16 @@ def delete_user(user_id: int,
 # CRUD MENU
 # ----------------------
 @app.post("/menu", response_model=MenuItemOut)
-def create_menu_item(item: MenuItemCreate,
-                     db: Session = Depends(get_db),
-                     admin: models.User = Depends(get_current_admin)
+def create_menu_item(
+        item: MenuItemCreate,
+        db: Session = Depends(get_db),
+        admin: models.User = Depends(get_current_admin)
 ):
     """Crée un nouvel item du menu (admin uniquement)."""
-    db_menu_item = models.MenuItem(name=item.name, purchase_price=item.purchase_price, selling_price= item.selling_price)
+    db_menu_item = models.MenuItem(
+        name=item.name,
+        purchase_price=item.purchase_price,
+        selling_price= item.selling_price)
     db.add(db_menu_item)
     db.commit()
     db.refresh(db_menu_item)
@@ -172,9 +295,10 @@ def create_menu_item(item: MenuItemCreate,
 
 
 @app.get("/menu/{menu_id}", response_model=MenuItemOut)
-def read_menu_item(menu_id: int,
-                   db: Session = Depends(get_db),
-                   current_user: models.User = Depends(get_current_user)
+def read_menu_item(
+        menu_id: int,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
 ):
     """Récupère un item du menu par son ID."""
     menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
@@ -189,7 +313,7 @@ def list_menu(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Liste tous les items du menu avec pagination."""
+    """Liste tous les items du menu (avec pagination)."""
     skip = (page - 1) * limit
     all_items = db.query(models.MenuItem).offset(skip).limit(limit).all()
     total_items = db.query(models.MenuItem).count()
@@ -222,10 +346,11 @@ def list_menu(
     }
 
 @app.put("/menu/{menu_id}", response_model=MenuItemOut)
-def update_menu_item(menu_id: int,
-                     menu_item: MenuItemUpdate,
-                     db: Session = Depends(get_db),
-                     admin: models.User = Depends(get_current_admin)
+def update_menu_item(
+        menu_id: int,
+        menu_item: MenuItemUpdate,
+        db: Session = Depends(get_db),
+        admin: models.User = Depends(get_current_admin)
 ):
     """Modifie un item du menu existant (admin uniquement)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
@@ -244,9 +369,10 @@ def update_menu_item(menu_id: int,
 
 
 @app.delete("/menu/{menu_id}")
-def delete_menu_item(menu_id: int,
-                     db: Session = Depends(get_db),
-                     admin: models.User = Depends(get_current_admin)
+def delete_menu_item(
+        menu_id: int,
+        db: Session = Depends(get_db),
+        admin: models.User = Depends(get_current_admin)
 ):
     """Supprime un item du menu (admin uniquement)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
@@ -257,64 +383,94 @@ def delete_menu_item(menu_id: int,
     return {"message": "Menu item deleted"}
 
 # ----------------------
-# CRUD INVENTAIRE (PROTÉGÉ)
+# RÉAPPROVISIONNEMENT PAR LE JOUEUR
 # ----------------------
-@app.get("/inventory")
-def list_inventory(
+@app.post("/order/restock", response_model=InventoryItemOut)
+def restock_item(
+        order: OrderCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Liste l'inventaire du joueur connecté avec détails."""
+    """
+        Passe une commande pour le café.
+        Cela augmente le stock de l'inventaire du joueur et diminue l'argent au joueur et log l'action.
+        """
 
-    # 1. Récupère l'inventaire du joueur
-    inventory_items = db.query(models.Inventory).filter(
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == order.menu_item_id
+    ).first()
+
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+    montant_depense = menu_item.purchase_price * order.quantity
+
+    if current_user.money < montant_depense:
+        raise HTTPException(status_code=400, detail="Pas assez d'argent !")
+
+    current_user.money -= montant_depense
+
+    inventory_item = db.query(models.Inventory).filter(
+        models.Inventory.menu_item_id == order.menu_item_id,
         models.Inventory.user_id == current_user.id
-    ).all()
+    ).first()
 
-    # 2. Enrichis chaque item
-    inventory_details = []
-    notifications = []
+    if not inventory_item:
+        inventory_item = models.Inventory(
+            menu_item_id=order.menu_item_id,
+            quantity=order.quantity,
+            user_id=current_user.id
+        )
+        db.add(inventory_item)
+    else:
+        inventory_item.quantity += order.quantity
+
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action_type="restock",
+        message=f"Réapprovisionnement : {order.quantity}x {menu_item.name} → -{montant_depense:.2f}€",
+        amount=-montant_depense
+    )
+
+    db.commit()
+    db.refresh(inventory_item)
+
+    return inventory_item
+
+# ----------------------
+# CRUD INVENTAIRE
+# ----------------------
+@app.get("/inventory", response_model=InventoryOut)
+def list_inventory(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+            Consulte l'inventaire des produits que le café a en stock.
+            """
+    inventory_items = (
+        db.query(models.Inventory)
+        .join(models.Inventory.menu_item)
+        .filter(models.Inventory.user_id == current_user.id)
+        .all()
+    )
+
+    items = []
+
     for inv in inventory_items:
-        # Récupère le menu_item correspondant
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == inv.menu_item_id
-        ).first()
+        items.append(
+            InventoryItemPlayerOut(
+                menu_item_id=inv.menu_item_id,
+                product_name=inv.menu_item.name,
+                quantity=inv.quantity
+            )
+        )
 
-        if menu_item is None:
-            continue
+    return InventoryOut(items=items)
 
-        # Détermine le statut
-        status = "low_stock" if inv.quantity < 10 else "ok"
 
-        # Crée le dictionnaire
-        product_info = {
-            "id": inv.id,
-            "menu_item_id": inv.menu_item_id,
-            "product_name": menu_item.name if menu_item else "Unknown",
-            "quantity": inv.quantity,
-            "status": status
-        }
-
-        # Ajoute à la liste
-        inventory_details.append(product_info)
-
-        if inv.quantity < 10:
-            notifications.append(f"⚠️ Stock faible : {menu_item.name} ({inv.quantity} unités)")
-    # 3. Retourne tout
-    return {
-        "player": {
-            "username": current_user.username,
-            "money": current_user.money
-        },
-        "inventory": {
-            "total_items": len(inventory_details),
-            "items": inventory_details
-        },
-        "notifications": notifications
-
-    }
-
-@app.get("/inventory/{item_id}", response_model=InventoryOut)
+@app.get("/inventory/{item_id}", response_model=InventoryItemOut)
 def read_inventory(item_id: int,
                    db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)
@@ -328,43 +484,56 @@ def read_inventory(item_id: int,
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
+@app.delete("/admin/inventory/{item_id}")
+def admin_delete_inventory(
+        item_id: int,
+        db: Session = Depends(get_db),
+        current_admin: models.User = Depends(get_current_admin)
+):
+    """Supprime n'importe quel item d'inventaire (admin uniquement)."""
 
-@app.delete("/inventory/{item_id}")
-def delete_inventory(item_id: int, db: Session = Depends(get_db)):
-    """Supprime un item d'inventaire."""
-    db_item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+    db_item = db.query(models.Inventory).filter(
+        models.Inventory.id == item_id
+    ).first()
+
     if not db_item:
-        raise HTTPException(status_code=404, detail="Inventory not found")
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    user = db.query(models.User).filter(
+        models.User.id == db_item.user_id
+    ).first()
+
+    menu_item = db.query(models.MenuItem).filter(
+        models.MenuItem.id == db_item.menu_item_id
+    ).first()
+
     db.delete(db_item)
     db.commit()
-    return {"message": "Inventory deleted"}
 
+    return {
+        "message": "Inventory deleted",
+        "deleted_item": {
+            "id": item_id,
+            "product_name": menu_item.name if menu_item else "Unknown",
+            "quantity": db_item.quantity,
+            "owner": user.username if user else "Unknown"
+        }
+    }
 
 # ----------------------
-# COMMANDES CLIENTS (PROTÉGÉ)
+# COMMANDES CLIENTS
 # ----------------------
-@app.post("/order/client")
+@app.post("/order/client", response_model=OrderOut)
 def order_for_client(
         order: OrderCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
     """
-    Passe une commande pour un client (nécessite authentification).
-    Diminue le stock si la quantité est disponible.
-    Ajoute l'argent au joueur et log l'action.
+    Passe une commande pour un client.
+    La commande est mise en attente.
     """
-    # 1. Chercher l'inventory par menu_item_id ET user_id
-    inventory_item = db.query(models.Inventory).filter(
-        models.Inventory.menu_item_id == order.menu_item_id,
-        models.Inventory.user_id == current_user.id
-    ).first()
 
-    # 2. Vérifier le stock
-    if not inventory_item or inventory_item.quantity < order.quantity:
-        raise HTTPException(status_code=400, detail="Stock insuffisant")
-
-    # 3. Récupérer le menu_item pour le nom et le prix
     menu_item = db.query(models.MenuItem).filter(
         models.MenuItem.id == order.menu_item_id
     ).first()
@@ -372,52 +541,43 @@ def order_for_client(
     if not menu_item:
         raise HTTPException(status_code=404, detail="Produit non trouvé")
 
-    # 4. Retirer du stock
-    inventory_item.quantity -= order.quantity
-
-    # 5. Créer la commande
     db_order = models.Order(
         menu_item_id=order.menu_item_id,
         quantity=order.quantity,
-        user_id=current_user.id
+        user_id = current_user.id
     )
     db.add(db_order)
 
-    # 6. Calculer et ajouter l'argent au joueur
-    montant_gagne = menu_item.selling_price * order.quantity
-    current_user.money += montant_gagne
-
-    # 7. Logger l'action
     log_action(
         db=db,
         user_id=current_user.id,
-        action_type="order_client",
-        message=f"Vente : {order.quantity}x {menu_item.name} → +{montant_gagne}€",
-        amount=montant_gagne
+        action_type="order_created",
+        message=f"Nouvelle commande : {order.quantity}x {menu_item.name}"
     )
-
-    # 8. Sauvegarder TOUT en une fois (stock + commande + argent + log)
+    # Sauvegarder TOUT en une fois (stock + commande + argent + log)
     db.commit()
     db.refresh(db_order)
 
     return {
-        "order": {
-            "id": db_order.id,
-            "menu_item_id": db_order.menu_item_id,
-            "quantity": db_order.quantity,
-            "user_id": db_order.user_id
-        },
-        "message": f"Vente : {order.quantity}x {menu_item.name} → +{montant_gagne:.2f}€ | Stock restant : {inventory_item.quantity} | Argent : {current_user.money:.2f}€"
+    "id":db_order.id,
+    "menu_item_id":db_order.menu_item_id,
+    "menu_item_name":menu_item.name,
+    "quantity":db_order.quantity,
+    "status":db_order.status
     }
 
-@app.post("/orders/{order_id}/complete")
+@app.patch("/orders/{order_id}/complete", response_model=OrderOut)
 def complete_order(
     order_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    """
+    Change le statut d'une commande de PENDING à COMPLETED.
+    Retire le stock, ajoute l'argent au joueur et log l'action.
+    """
 
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -442,232 +602,141 @@ def complete_order(
         models.MenuItem.id == order.menu_item_id
     ).first()
 
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    montant = menu_item.selling_price * order.quantity
+
     try:
         order.status = models.OrderStatus.COMPLETED
         inventory.quantity -= order.quantity
-        current_user.money += menu_item.selling_price * order.quantity
+        current_user.money += montant
+
+        log_action(
+            db=db,
+            user_id=current_user.id,
+            action_type="order_completed",
+            message=f"Commande terminée : {order.quantity}x {menu_item.name} → +{montant:.2f}€",
+            amount=montant
+        )
 
         db.commit()
-    except:
+
+    except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Order processing failed")
 
     return {
-        "message": "Order completed",
-        "order_id": order.id,
-        "new_balance": current_user.money
+        "id": order.id,
+        "menu_item_id": order.menu_item_id,
+        "menu_item_name": menu_item.name,
+        "quantity": order.quantity,
+        "status": order.status
+    }
+
+@app.patch("/orders/{order_id}/cancel")
+def cancel_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Change le statut d'une commande de PENDING à CANCELLED.
+    Le joueur n'a pas réussi à faire la commande à temps, la commande est annulée.
+    """
+
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your order")
+
+    if order.status != models.OrderStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Order is not pending")
+
+    try:
+        order.status = models.OrderStatus.CANCELLED
+
+        log_action(
+            db=db,
+            user_id=current_user.id,
+            action_type="order_CANCELLED",
+            message=f"Commande annulé"
+        )
+
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Order processing failed")
+
+    return {
+        "message": "Order CANCELLED",
+        "order_id": order.id
     }
 
 
 
-# ----------------------
-# RÉAPPROVISIONNEMENT PAR LE JOUEUR (PROTÉGÉ)
-# ----------------------
-@app.post("/order/restock", response_model=InventoryOut)
-def restock_item(
-        order: OrderCreate,
-        db: Session = Depends(get_db),
-        current_user: models.User = Depends(get_current_user)
+@app.get("/orders", response_model=PaginatedOrdersOut)
+def list_orders(
+    page: int = 1,
+    limit: int = 20,
+    menu_item_id: int | None = None,
+    status: OrderStatusEnum  | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
 ):
     """
-        Passe une commande pour le café (nécessite authentification).
-        Augmente le stock si la quantité est disponible.
-        Diminue l'argent au joueur et log l'action.
-        """
-    # 1. Récupérer le menu_item pour avoir le prix
-    menu_item = db.query(models.MenuItem).filter(
-        models.MenuItem.id == order.menu_item_id
-    ).first()
-
-    if not menu_item:
-        raise HTTPException(status_code=404, detail="Produit non trouvé")
-
-    # 2. Calculer le coût
-    montant_depense = menu_item.purchase_price * order.quantity
-
-    # 3. Vérifier que le joueur a assez d'argent
-    if current_user.money < montant_depense:
-        raise HTTPException(status_code=400, detail="Pas assez d'argent !")
-
-    # 4. Déduire l'argent
-    current_user.money -= montant_depense
-
-    # 5. Ajouter/mettre à jour l'inventaire (ton code existant)
-    inventory_item = db.query(models.Inventory).filter(
-        models.Inventory.menu_item_id == order.menu_item_id,
-        models.Inventory.user_id == current_user.id
-    ).first()
-
-    if not inventory_item:
-        inventory_item = models.Inventory(
-            menu_item_id=order.menu_item_id,
-            quantity=order.quantity,
-            user_id=current_user.id
-        )
-        db.add(inventory_item)
-    else:
-        inventory_item.quantity += order.quantity
-
-    # 6. Logger l'action
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action_type="restock",
-        message=f"Réapprovisionnement : {order.quantity}x {menu_item.name} → -{montant_depense}€",
-        amount=-montant_depense
-    )
-
-    # 7. Sauvegarder TOUT (inventaire + argent user + log)
-    db.commit()
-    db.refresh(inventory_item)
-
-    return inventory_item
-
-@app.get("/orders")
-def list_orders(
-        page: int = 1,
-        limit: int = 20,
-        menu_item_id: int = None,
-        db: Session = Depends(get_db),
-        current_user: models.User = Depends(get_current_user)
-):
-    """Liste toutes les commandes du joueur avec pagination."""
-
+    La liste de toutes les commandes du joueur connecté.
+    """
     skip = (page - 1) * limit
-    query = db.query(models.Order).filter(
-        models.Order.user_id == current_user.id
+
+    query = (
+        db.query(models.Order, models.MenuItem)
+        .join(models.MenuItem)
+        .filter(models.Order.user_id == current_user.id)
     )
-    #Filtre optionnel
+
     if menu_item_id is not None:
         query = query.filter(models.Order.menu_item_id == menu_item_id)
 
-    orders = query.order_by(
-        models.Order.id.desc()
-    ).offset(skip).limit(limit).all()
+    if status is not None:
+        query = query.filter(models.Order.status == status)
 
-    count_query = db.query(models.Order).filter(
-        models.Order.user_id == current_user.id
-    )
-    if menu_item_id is not None:
-        count_query = count_query.filter(models.Order.menu_item_id == menu_item_id)
-
-    total_items = count_query.count()
-
+    total_items = query.count()
     total_pages = math.ceil(total_items / limit)
 
-    orders_details = []
-    for order in orders:
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == order.menu_item_id
-        ).first()
+    results = (
+        query
+        .order_by(models.Order.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
-        orders_details.append({
-            "id": order.id,
-            "menu_item_id": order.menu_item_id,
-            "product_name": menu_item.name if menu_item else "Unknown",
-            "quantity": order.quantity
-        })
+    items = [
+        OrderOut(
+            id=order.id,
+            menu_item_id=order.menu_item_id,
+            menu_item_name=menu_item.name,
+            quantity=order.quantity,
+            status=order.status
+        )
+        for order, menu_item in results
+    ]
 
     return {
         "page": page,
         "limit": limit,
         "total_items": total_items,
         "total_pages": total_pages,
-        "orders": orders_details
+        "items": items
     }
 
 # --------------------------
-# AUTHENTIFICATION
+# ROUTES POUR LES STATISTIQUES DU JEU
 # --------------------------
-@app.post("/auth/signup", response_model=UserResponse)
-@limiter.limit("5/minute") # ← Maximum 5 signups par minute
-def signup(request: Request, user: UserSignup, db: Session = Depends(get_db)):
-    """Créer un nouveau compte utilisateur."""
-    # 1. Chercher si username existe déjà
-    existing_user = db.query(models.User).filter(
-        models.User.username == user.username
-    ).first()
-
-    # 2. Si existe, erreur
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username déjà pris")
-
-    # 3. Hasher le password
-    hashed = hash_password(user.password)
-
-    # 4. Créer le user
-    db_user = models.User(
-        username=user.username,
-        password_hash=hashed,
-        money=user.money,
-        is_admin = user.is_admin
-    )
-
-    # 5. Sauvegarder
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-
-    # 6. Retourner (sans password)
-    return db_user
-
-
-@app.post("/auth/login")
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """Se connecter et recevoir un JWT token."""
-    # 1. Trouver le user par username
-    user = db.query(models.User).filter(
-        models.User.username == credentials.username
-    ).first()
-
-    # 2. Si user n'existe pas
-    if not user:
-        raise HTTPException(status_code=401, detail="Username ou password incorrect")
-
-    # 3. Vérifier le password
-    if not verify_password(credentials.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Username ou password incorrect")
-
-    # 4. Créer le JWT avec l'id du user
-    access_token = create_access_token(data={"user_id": user.id})
-
-    # 5. Retourner le token
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "money": user.money
-        }
-    }
-
-
-# --------------------------
-# ROUTES ADMIN
-# --------------------------
-@app.get("/admin/users")
-def list_all_users(
-        db: Session = Depends(get_db),
-        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
-):
-    """Liste tous les utilisateurs (admin uniquement)."""
-    users = db.query(models.User).all()
-
-    users_list = []
-    for user in users:
-        users_list.append({
-            "id": user.id,
-            "username": user.username,
-            "money": user.money,
-            "is_admin": user.is_admin
-        })
-
-    return {
-        "total_users": len(users_list),
-        "users": users_list
-    }
-
 
 @app.get("/admin/stats")
 def get_global_stats(
@@ -704,14 +773,16 @@ def get_global_stats(
         }
     }
 
-
+# --------------------------
+# ROUTES POUR L'HISTORIQUE DU JOUEUR
+# --------------------------
 
 @app.get("/admin/orders")
 def list_all_orders(
         page: int = 1,
         limit: int = 20,
         db: Session = Depends(get_db),
-        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
+        current_admin: models.User = Depends(get_current_admin)
 ):
     """Liste toutes les commandes de tous les joueurs (admin uniquement)."""
 
@@ -754,46 +825,6 @@ def list_all_orders(
         "orders": orders_details
     }
 
-
-@app.delete("/admin/inventory/{item_id}")
-def admin_delete_inventory(
-        item_id: int,
-        db: Session = Depends(get_db),
-        current_admin: models.User = Depends(get_current_admin)  # ← Admin requis
-):
-    """Supprime n'importe quel item d'inventaire (admin uniquement)."""
-
-    # Pas de filtre user_id, on peut supprimer n'importe quel inventaire
-    db_item = db.query(models.Inventory).filter(
-        models.Inventory.id == item_id
-    ).first()
-
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Inventory item not found")
-
-    # Récupérer les infos avant de supprimer
-    user = db.query(models.User).filter(
-        models.User.id == db_item.user_id
-    ).first()
-
-    menu_item = db.query(models.MenuItem).filter(
-        models.MenuItem.id == db_item.menu_item_id
-    ).first()
-
-    db.delete(db_item)
-    db.commit()
-
-    return {
-        "message": "Inventory deleted",
-        "deleted_item": {
-            "id": item_id,
-            "product_name": menu_item.name if menu_item else "Unknown",
-            "quantity": db_item.quantity,
-            "owner": user.username if user else "Unknown"
-        }
-    }
-
-
 # --------------------------
 # ROUTES POUR HISTORIQUE DU JOUEUR
 # --------------------------
@@ -804,14 +835,12 @@ def get_game_history(
 ):
     """Récupère l'historique complet des actions du joueur."""
 
-    # 1. Récupérer tous les logs du joueur
     logs = db.query(models.GameLog).filter(
         models.GameLog.user_id == current_user.id
     ).order_by(
         models.GameLog.timestamp.desc()  # Plus récent en premier
     ).all()
 
-    # 2. Retourner
     return {
         "player": {
             "username": current_user.username,
@@ -861,7 +890,6 @@ def get_game_stats(
             "total_orders": progress.total_orders
         }
     }
-
 
 # ==========================================
 # ROUTES INTERFACE WEB

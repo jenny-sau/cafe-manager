@@ -57,7 +57,6 @@ class Inventory(Base):
 # --------------------------
 class OrderStatus(str, PyEnum):
     PENDING = "pending"
-    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
