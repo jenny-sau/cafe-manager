@@ -6,7 +6,8 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///./cafe.db"
 
 # Création du moteur (engine) qui gère la connexion à SQLite
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False}
 )
 
 # Session = l’outil qui permet de dialoguer avec la DB

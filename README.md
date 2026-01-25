@@ -85,8 +85,28 @@ POST /auth/signup
 - `GET /game/stats` - Consulter ses statistiques (argent, niveau, bénéfices...)
 - `GET /admin/stats` - Voir les stats globales du jeu (admin seulement)
 
-### Comment ça marche
+## Comment ça marche
+### Restock workflow
 
+- Vérification du solde du joueur
+- Décrémentation de l’argent
+- Incrémentation du stock
+- Action enregistrée dans l’historique
+
+### Orders workflow
+
+Les commandes suivent un cycle de vie basé sur un statut :
+
+- **PENDING** : commande créée, aucun impact sur le stock ou l’argent
+- **COMPLETED** : stock décrémenté, argent crédité (transaction atomique)
+- **CANCELLED** : commande annulée sans effet métier
+
+Les transitions sont strictement contrôlées :
+- `PENDING → COMPLETED`
+- `PENDING → CANCELLED`
+
+
+### Exemple:
 #### 1. Réapprovisionnement
 ```
 Le joueur achète 10 cafés à 1.50€ l'unité

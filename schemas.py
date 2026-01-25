@@ -109,18 +109,11 @@ class InventoryUpdate(BaseModel):
         if v < 0:
             raise ValueError('La quantité ne peut pas être négative')
         return v
-
-
 # --------------------------
-# COMMANDES
+# Restock
 # --------------------------
-class OrderStatusEnum(str, Enum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-class OrderCreate(BaseModel):
-    """Commande client ou réapprovisionnement joueur."""
+class RestockCreate(BaseModel):
+    """Réapprovisionnement par le joueur."""
     menu_item_id: int
     quantity: int
 
@@ -130,16 +123,52 @@ class OrderCreate(BaseModel):
         if v <= 0:
             raise ValueError('La quantité doit être supérieure à 0')
         return v
+# --------------------------
+# COMMANDES
+# --------------------------
+class OrderStatusEnum(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
-class OrderOut(BaseModel):
-    """Retourner une commande (version simplifiée pour les réponses)."""
-    id: int
+class OrderItemCreate(BaseModel):
+    menu_item_id: int
+    quantity: int
+
+class OrderCreate(BaseModel):
+    items: list[OrderItemCreate]
+
+class OrderedItemOut(BaseModel):
     menu_item_id: int
     menu_item_name: str
     quantity: int
-    status: OrderStatusEnum
 
     model_config = {"from_attributes": True}
+
+class OrderCreatedOut(BaseModel):
+    """Réponse lors de la création de commande client"""
+    message: str
+    order_id: int
+    items: list[OrderedItemOut]
+
+class OrderStatusOut(BaseModel):
+    """Réponse lors de changement de statut de commande client"""
+    message: str
+    order_id: int
+
+class OrderDetailOut(BaseModel):
+    """Réponse quand on veut le détail(=le contenu) d'une commande"""
+    status: OrderStatusEnum
+    items: list[OrderedItemOut]
+
+    model_config = {"from_attributes": True}
+
+class OrderSummaryOut(BaseModel):
+    """Lister les commandes."""
+
+    id: int
+    status: OrderStatusEnum
+    created_at: datetime
 
 class PaginatedOrdersOut(BaseModel):
     """Liste paginée de commandes."""
@@ -147,7 +176,24 @@ class PaginatedOrdersOut(BaseModel):
     limit: int
     total_items: int
     total_pages: int
-    items: list[OrderOut]
+    items: list[OrderSummaryOut]
+
+class OrderAdminSummaryOut(BaseModel):
+    id: int
+    user_id: int
+    status: OrderStatusEnum
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class PaginatedAdminOrdersOut(BaseModel):
+    page: int
+    limit: int
+    total_items: int
+    total_pages: int
+    items: list[OrderAdminSummaryOut]
+
 # --------------------------
 # AUTHENTIFICATION
 # --------------------------

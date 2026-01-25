@@ -1,18 +1,20 @@
 import math
+from logging import raiseExceptions
+
 from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from schemas import (
     UserCreate, UserOut, UserUpdate, TokenOut,
     MenuItemCreate, MenuItemOut, MenuListResponse, MenuItemWithStock, MenuItemUpdate,
     InventoryCreate, InventoryItemOut, InventoryItemPlayerOut, InventoryOut, InventoryUpdate,
-    OrderCreate, OrderOut, OrderStatusEnum,
+    OrderStatusEnum, OrderCreate, OrderedItemOut, RestockCreate, OrderCreatedOut, OrderStatusOut, OrderDetailOut, PaginatedOrdersOut, OrderSummaryOut, PaginatedAdminOrdersOut,
     UserSignup, UserResponse, UserLogin,
-    GameLogOut, PaginatedOrdersOut
+    GameLogOut
 )
 from database import Base, engine, get_db
 import models
@@ -387,7 +389,7 @@ def delete_menu_item(
 # ----------------------
 @app.post("/order/restock", response_model=InventoryItemOut)
 def restock_item(
-        order: OrderCreate,
+        order: RestockCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
@@ -451,7 +453,6 @@ def list_inventory(
             """
     inventory_items = (
         db.query(models.Inventory)
-        .join(models.Inventory.menu_item)
         .filter(models.Inventory.user_id == current_user.id)
         .all()
     )
@@ -521,11 +522,11 @@ def admin_delete_inventory(
     }
 
 # ----------------------
-# COMMANDES CLIENTS
+# CRUD COMMANDES CLIENTS
 # ----------------------
-@app.post("/order/client", response_model=OrderOut)
+@app.post("/order/client", response_model=OrderCreatedOut)
 def order_for_client(
-        order: OrderCreate,
+        order_data: OrderCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
@@ -534,39 +535,92 @@ def order_for_client(
     La commande est mise en attente.
     """
 
-    menu_item = db.query(models.MenuItem).filter(
-        models.MenuItem.id == order.menu_item_id
-    ).first()
-
-    if not menu_item:
-        raise HTTPException(status_code=404, detail="Produit non trouvé")
-
-    db_order = models.Order(
-        menu_item_id=order.menu_item_id,
-        quantity=order.quantity,
-        user_id = current_user.id
-    )
-    db.add(db_order)
-
-    log_action(
-        db=db,
+    #Créer la commande globale
+    order = models.Order(
         user_id=current_user.id,
-        action_type="order_created",
-        message=f"Nouvelle commande : {order.quantity}x {menu_item.name}"
+        status=models.OrderStatus.PENDING
     )
-    # Sauvegarder TOUT en une fois (stock + commande + argent + log)
+    db.add(order)
+    db.flush() #pour obtenir order.id sans comit
+
+    #créer les lignes de commande
+    response_items = []
+    for item in order_data.items:
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id
+        ).first()
+
+        if not menu_item:
+            raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+        order_item = models.OrderItem(
+            order_id = order.id,
+            menu_item_id= item.menu_item_id,
+            quantity=item.quantity,
+    )
+        response_items.append(
+            {"menu_item_name": menu_item.name,
+             "menu_item_id": menu_item.id,
+             "quantity": item.quantity
+             }
+        )
+
+        db.add(order_item)
+
+        log_action(
+            db=db,
+            user_id=current_user.id,
+            action_type="order_created",
+            message=f"Nouvelle commande : {item.quantity}x {menu_item.name}"
+        )
+
+
+    #comit final
     db.commit()
-    db.refresh(db_order)
 
     return {
-    "id":db_order.id,
-    "menu_item_id":db_order.menu_item_id,
-    "menu_item_name":menu_item.name,
-    "quantity":db_order.quantity,
-    "status":db_order.status
+        "message": "Commande passée",
+        "order_id": order.id,
+        "items": response_items
     }
 
-@app.patch("/orders/{order_id}/complete", response_model=OrderOut)
+@app.get("/orders/{order_id}", response_model=OrderDetailOut)
+def read_order(
+        order_id: int,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+):
+    """
+    Consulter le détail de la commande.
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+
+    # Vérification:
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your order")
+
+    items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all()
+
+    items_response = []
+    for item in items:
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id
+        ).first()
+
+        items_response.append(
+            {"menu_item_id": menu_item.id,
+             "menu_item_name": menu_item.name,
+             "quantity": item.quantity}
+        )
+
+    return {
+        "status" : order.status,
+        "items" : items_response
+    }
+
+@app.patch("/orders/{order_id}/complete", response_model=OrderStatusOut)
 def complete_order(
     order_id: int,
     db: Session = Depends(get_db),
@@ -578,48 +632,47 @@ def complete_order(
     """
 
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    # Vérifications:
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your order")
-
     if order.status != models.OrderStatus.PENDING:
         raise HTTPException(status_code=400, detail="Order is not pending")
 
-    inventory = db.query(models.Inventory).filter(
-        models.Inventory.user_id == current_user.id,
-        models.Inventory.menu_item_id == order.menu_item_id
-    ).first()
+    order_items = (db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all())
+    for item in order_items:
+        inventory = db.query(models.Inventory).filter(
+            models.Inventory.user_id == current_user.id,
+            models.Inventory.menu_item_id == item.menu_item_id
+        ).first()
+        if not inventory or inventory.quantity < item.quantity:
+            raise HTTPException(status_code=400, detail="Not enough stock")
 
-    if not inventory:
-        raise HTTPException(status_code=400, detail="No inventory for this item")
+    #Effets
+    total = 0
+    for item in order_items:
+        inventory = db.query(models.Inventory).filter(
+            models.Inventory.user_id == current_user.id,
+            models.Inventory.menu_item_id == item.menu_item_id
+        ).first()
 
-    if inventory.quantity < order.quantity:
-        raise HTTPException(status_code=400, detail="Not enough stock")
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id).first()
 
-    menu_item = db.query(models.MenuItem).filter(
-        models.MenuItem.id == order.menu_item_id
-    ).first()
-
-    if not menu_item:
-        raise HTTPException(status_code=404, detail="Menu item not found")
-
-    montant = menu_item.selling_price * order.quantity
-
-    try:
-        order.status = models.OrderStatus.COMPLETED
-        inventory.quantity -= order.quantity
-        current_user.money += montant
-
+        montant = menu_item.selling_price * item.quantity
+        total+=montant
         log_action(
             db=db,
             user_id=current_user.id,
             action_type="order_completed",
-            message=f"Commande terminée : {order.quantity}x {menu_item.name} → +{montant:.2f}€",
-            amount=montant
+            message=f"Commande complétée : {item.quantity}x {menu_item.name} (+{montant}€)"
         )
+        inventory.quantity -= item.quantity
 
+    try:
+        order.status = models.OrderStatus.COMPLETED
+        current_user.money += total
         db.commit()
 
     except Exception as e:
@@ -627,14 +680,11 @@ def complete_order(
         raise HTTPException(status_code=500, detail="Order processing failed")
 
     return {
-        "id": order.id,
-        "menu_item_id": order.menu_item_id,
-        "menu_item_name": menu_item.name,
-        "quantity": order.quantity,
-        "status": order.status
+    "message": "Order completed",
+    "order_id" : order.id
     }
 
-@app.patch("/orders/{order_id}/cancel")
+@app.patch("/orders/{order_id}/cancel", response_model=OrderStatusOut)
 def cancel_order(
     order_id: int,
     db: Session = Depends(get_db),
@@ -645,26 +695,24 @@ def cancel_order(
     Le joueur n'a pas réussi à faire la commande à temps, la commande est annulée.
     """
 
+    #Vérificiations
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your order")
-
     if order.status != models.OrderStatus.PENDING:
         raise HTTPException(status_code=400, detail="Order is not pending")
 
-    try:
-        order.status = models.OrderStatus.CANCELLED
-
-        log_action(
-            db=db,
-            user_id=current_user.id,
-            action_type="order_CANCELLED",
-            message=f"Commande annulé"
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action_type="order_cancelled",
+        message=f"Commande annulée : {order_id} "
         )
 
+    try:
+        order.status = models.OrderStatus.CANCELLED
         db.commit()
 
     except Exception as e:
@@ -672,68 +720,44 @@ def cancel_order(
         raise HTTPException(status_code=500, detail="Order processing failed")
 
     return {
-        "message": "Order CANCELLED",
+        "message": "Order cancelled",
         "order_id": order.id
     }
 
-
-
-@app.get("/orders", response_model=PaginatedOrdersOut)
-def list_orders(
+@app.get("/admin/orders", response_model=PaginatedAdminOrdersOut)
+def list_all_orders(
     page: int = 1,
     limit: int = 20,
-    menu_item_id: int | None = None,
-    status: OrderStatusEnum  | None = None,
+    status: OrderStatusEnum | None = None,
+    user_id: int | None = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_admin: models.User = Depends(get_current_admin)
 ):
-    """
-    La liste de toutes les commandes du joueur connecté.
-    """
-    skip = (page - 1) * limit
+    """Liste toutes les commandes de tous les joueurs (admin uniquement)."""
 
-    query = (
-        db.query(models.Order, models.MenuItem)
-        .join(models.MenuItem)
-        .filter(models.Order.user_id == current_user.id)
-    )
-
-    if menu_item_id is not None:
-        query = query.filter(models.Order.menu_item_id == menu_item_id)
-
-    if status is not None:
+    query = db.query(models.Order)
+    if status:
         query = query.filter(models.Order.status == status)
+    if user_id is not None:
+        query = query.filter(models.Order.user_id == user_id)
 
     total_items = query.count()
-    total_pages = math.ceil(total_items / limit)
 
-    results = (
+    orders = (
         query
-        .order_by(models.Order.id.desc())
-        .offset(skip)
+        .order_by(models.Order.created_at.desc())
         .limit(limit)
+        .offset((page - 1) * limit)
         .all()
     )
-
-    items = [
-        OrderOut(
-            id=order.id,
-            menu_item_id=order.menu_item_id,
-            menu_item_name=menu_item.name,
-            quantity=order.quantity,
-            status=order.status
-        )
-        for order, menu_item in results
-    ]
 
     return {
         "page": page,
         "limit": limit,
         "total_items": total_items,
-        "total_pages": total_pages,
-        "items": items
+        "total_pages": math.ceil(total_items / limit) if limit > 0 else 0,
+        "items": orders
     }
-
 # --------------------------
 # ROUTES POUR LES STATISTIQUES DU JEU
 # --------------------------
@@ -773,61 +797,6 @@ def get_global_stats(
         }
     }
 
-# --------------------------
-# ROUTES POUR L'HISTORIQUE DU JOUEUR
-# --------------------------
-
-@app.get("/admin/orders")
-def list_all_orders(
-        page: int = 1,
-        limit: int = 20,
-        db: Session = Depends(get_db),
-        current_admin: models.User = Depends(get_current_admin)
-):
-    """Liste toutes les commandes de tous les joueurs (admin uniquement)."""
-
-    skip = (page - 1) * limit
-
-    # Toutes les commandes (pas de filtre user_id)
-    orders = db.query(models.Order).order_by(
-        models.Order.id.desc()
-    ).offset(skip).limit(limit).all()
-
-    total_items = db.query(models.Order).count()
-    total_pages = math.ceil(total_items / limit)
-
-    orders_details = []
-    for order in orders:
-        # Récupérer le menu_item
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == order.menu_item_id
-        ).first()
-
-        # Récupérer l'utilisateur qui a passé la commande
-        user = db.query(models.User).filter(
-            models.User.id == order.user_id
-        ).first()
-
-        orders_details.append({
-            "id": order.id,
-            "menu_item_id": order.menu_item_id,
-            "product_name": menu_item.name if menu_item else "Unknown",
-            "quantity": order.quantity,
-            "user_id": order.user_id,
-            "username": user.username if user else "Unknown"
-        })
-
-    return {
-        "page": page,
-        "limit": limit,
-        "total_items": total_items,
-        "total_pages": total_pages,
-        "orders": orders_details
-    }
-
-# --------------------------
-# ROUTES POUR HISTORIQUE DU JOUEUR
-# --------------------------
 @app.get("/game/history")
 def get_game_history(
         db: Session = Depends(get_db),
@@ -850,10 +819,6 @@ def get_game_history(
         "history": logs
     }
 
-
-# --------------------------
-# ROUTES POUR STATISTIQUES DU JOUEUR
-# --------------------------
 
 @app.get("/game/stats")
 def get_game_stats(

@@ -1,13 +1,13 @@
-from enum import Enum as PyEnum
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean, DateTime, Enum
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
+from enum import Enum as PyEnum
 
 
-# --------------------------
+# ----------------
 # UTILISATEUR
-# --------------------------
+# ------------------------
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -23,23 +23,23 @@ class User(Base):
     player_progress = relationship("PlayerProgress", back_populates="user", uselist=False)
 
 
-# --------------------------
+# ----------------
 # MENU
-# --------------------------
+# ------------------------
 class MenuItem(Base):
     __tablename__ = "menu_items"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    name = Column(String, unique=True, index=True)
     purchase_price = Column(Float, nullable=False)
     selling_price = Column(Float, nullable=False)
 
     inventory_items = relationship("Inventory", back_populates="menu_item")
-    orders = relationship("Order", back_populates="menu_item")
+    orders_items = relationship("OrderItem", back_populates="menu_item")
 
 
-# --------------------------
+# ----------------
 # Inventaire
-# --------------------------
+# ------------------------
 class Inventory(Base):
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True, index=True)
@@ -52,9 +52,9 @@ class Inventory(Base):
     menu_item = relationship("MenuItem", back_populates="inventory_items")
 
 
-# --------------------------
+# ----------------
 # Commandes
-# --------------------------
+# ------------------------
 class OrderStatus(str, PyEnum):
     PENDING = "pending"
     COMPLETED = "completed"
@@ -64,20 +64,29 @@ class OrderStatus(str, PyEnum):
 class Order(Base):
     __tablename__ = "orders"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True) # Les numéros de commandes
     user_id = Column(Integer, ForeignKey("users.id"))
-    menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
-    quantity = Column(Integer)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING,  nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relations
     user = relationship("User", back_populates="orders")
-    menu_item = relationship("MenuItem", back_populates="orders")
+    items = relationship("OrderItem", back_populates="order")
 
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
+    quantity = Column(Integer)
 
-# --------------------------
-# GameLog -> Pour l'historique du joueur
-# --------------------------
+    # Relations
+    order = relationship("Order", back_populates="items")
+    menu_item = relationship("MenuItem")
+
+# ----------------
+# GameLog : Pour l'historique du joueur
+# ------------------------
 class GameLog(Base):
     __tablename__ = "gamelog"
     id = Column(Integer, primary_key=True, index=True)
@@ -91,9 +100,9 @@ class GameLog(Base):
     user = relationship("User", back_populates="game_logs")
 
 
-# --------------------------
-# PlayerProgress -> Pour les stats cumulatives des joueurs
-# --------------------------
+# ----------------
+# PlayerProgress : Pour les stats cumulatives des joueurs
+# ----------------------
 class PlayerProgress(Base):
     __tablename__ = "player_progress"
 
