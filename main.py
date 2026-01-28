@@ -1,7 +1,7 @@
 import math
 from logging import raiseExceptions
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -147,7 +147,11 @@ async def health():
 # --------------------------
 # AUTHENTIFICATION
 # --------------------------
-@app.post("/auth/signup", response_model=UserResponse)
+@app.post(
+    "/auth/signup",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED
+)
 @limiter.limit("5/minute") # Maximum 5 signups par minute
 def signup(
         request: Request,
@@ -167,7 +171,7 @@ def signup(
         username=user.username,
         password_hash=hashed,
         money=user.money,
-        is_admin = user.is_admin
+        is_admin = user.is_admin,
     )
 
     db.add(db_user)
@@ -176,7 +180,11 @@ def signup(
 
     return db_user
 
-@app.post("/auth/login", response_model=TokenOut)
+@app.post(
+    "/auth/login",
+    response_model=TokenOut,
+    status_code=status.HTTP_200_OK
+)
 def login(
         credentials: UserLogin,
         db: Session = Depends(get_db)
@@ -279,7 +287,9 @@ def delete_user(
 # ----------------------
 # CRUD MENU
 # ----------------------
-@app.post("/menu", response_model=MenuItemOut)
+@app.post("/menu",
+          response_model=MenuItemOut,
+          status_code=status.HTTP_201_CREATED)
 def create_menu_item(
         item: MenuItemCreate,
         db: Session = Depends(get_db),
@@ -638,7 +648,7 @@ def complete_order(
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your order")
     if order.status != models.OrderStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Order is not pending")
+        raise HTTPException(status_code=400, detail=" Order is not pending")
 
     order_items = (db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all())
     for item in order_items:
