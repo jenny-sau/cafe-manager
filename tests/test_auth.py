@@ -8,6 +8,7 @@ def test_signup_ok(client):
     )
     assert response.status_code == 201
 
+
 def test_signup_username_already_taken(client):
     # Signup_
     signup_response = client.post(
@@ -27,8 +28,8 @@ def test_signup_username_already_taken(client):
     assert signup_response.status_code == 400
     assert signup_response.json()["detail"] =="Username déjà pris"
 
+
 def test_login_ok(client):
-    # Signup_
     signup_response = client.post(
         "/auth/signup",
         json={
@@ -37,7 +38,7 @@ def test_login_ok(client):
         }
     )
     assert signup_response.status_code == 201
-    # Login:
+
     login_response = client.post(
         "/auth/login",
         json = {
@@ -50,9 +51,7 @@ def test_login_ok(client):
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
-
 def test_wrong_password(client):
-    # Signup_
     signup_response = client.post(
         "/auth/signup",
         json={

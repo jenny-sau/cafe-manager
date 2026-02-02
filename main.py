@@ -24,6 +24,12 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from dotenv import load_dotenv
+load_dotenv()
+import os
+print("DATABASE_URL =", os.getenv("DATABASE_URL"))
+
+
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
 # ----------------------
@@ -495,7 +501,7 @@ def read_inventory(item_id: int,
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
-@app.delete("/admin/inventory/{item_id}")
+@app.delete("/inventory/{item_id}")
 def admin_delete_inventory(
         item_id: int,
         db: Session = Depends(get_db),
@@ -561,7 +567,7 @@ def order_for_client(
         ).first()
 
         if not menu_item:
-            raise HTTPException(status_code=404, detail="Produit non trouvé")
+            raise HTTPException(status_code=404, detail="Item not found")
 
         order_item = models.OrderItem(
             order_id = order.id,
@@ -648,7 +654,7 @@ def complete_order(
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your order")
     if order.status != models.OrderStatus.PENDING:
-        raise HTTPException(status_code=400, detail=" Order is not pending")
+        raise HTTPException(status_code=400, detail="Order is not pending")
 
     order_items = (db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all())
     for item in order_items:

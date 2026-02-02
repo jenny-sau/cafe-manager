@@ -68,13 +68,14 @@ def client(db):
 #Token utilisateur simple:
 @pytest.fixture
 def user_token(client):
-    #signup
+
     client.post("/auth/signup", json={
         "username": "user",
         "password": "secret",
+        "money": 1000,
         "is_admin": False
     })
-    #login
+
     login_response = client.post("/auth/login", json={
         "username": "user",
         "password": "secret"
@@ -83,17 +84,34 @@ def user_token(client):
     token = login_response.json()["access_token"]
     return token
 
+# Fixture pour un seconde user:
+@pytest.fixture
+def second_user_token(client):
+    client.post("/auth/signup", json={
+        "username": "user2",
+        "password": "secret",
+        "money": 1000,
+        "is_admin": False
+    })
+
+    login = client.post("/auth/login", json={
+        "username": "user2",
+        "password": "secret"
+    })
+
+    return login.json()["access_token"]
+
 
 #Token utilisateur ADMIN:
 @pytest.fixture
 def admin_token(client):
-    #signup
+
     client.post("/auth/signup", json={
         "username": "admin",
         "password": "secret",
         "is_admin": True
     })
-    #login
+
     login_response = client.post("/auth/login", json={
         "username": "admin",
         "password": "secret"
@@ -180,5 +198,55 @@ def menu_ids(client, admin_token):
         ids.append(response.json()["id"])
     return ids
 
-#A AJOUTER: FIXTURE: inventory_item
-#A AJOUTER: FIXTURE: order
+#Créer des produits dans l'inventaire
+@pytest.fixture()
+def inventory_item_id(client, user_token, menu_id):
+    headers = {"Authorization": f"Bearer {user_token}"}
+
+    response = client.post(
+        "/order/restock",
+        json = {
+            "menu_item_id": menu_id,
+            "quantity": 1
+        },
+        headers = headers
+    )
+    assert response.status_code == 200
+
+    inventory_item_id = response.json()["id"]
+    return inventory_item_id
+
+
+#Créer une commande
+@pytest.fixture()
+def order_id (client, user_token, menu_id, inventory_item_id):
+    response = client.post(
+        "/order/client",
+        json={
+            "items": [
+                {
+                    "menu_item_id": menu_id,
+                    "quantity": 1
+                }
+            ]
+        },
+        headers = {"Authorization": f"Bearer {user_token}"}
+    )
+    assert response.status_code == 200
+    order_id = response.json()["order_id"]
+    return order_id
+
+# Créer des commandes pour 2 users différents:
+@pytest.fixture
+def second_order_id(client, second_user_token, menu_id, inventory_item_id):
+    response = client.post(
+        "/order/client",
+        json={
+            "items": [
+                {"menu_item_id": menu_id, "quantity": 1}
+            ]
+        },
+        headers = {"Authorization": f"Bearer {second_user_token}"}
+    )
+
+    return response.json()["order_id"]

@@ -49,6 +49,7 @@ def test_admin_ok(client, admin_token):
 
 # get_current_admin bloque user -> 403
 def test_user_on_admin_only(client, user_token):
+
     response = client.post(
         "/menu",
         json={

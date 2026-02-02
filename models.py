@@ -1,7 +1,10 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean, DateTime, Enum
+from sqlalchemy import (
+    Column, Integer, String, Numeric,
+    ForeignKey, Boolean, DateTime, Enum
+)
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
-from datetime import datetime
 from enum import Enum as PyEnum
 
 
@@ -13,8 +16,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    money = Column(Float, default=0.0)
-    is_admin = Column(Boolean, default=False)
+    money = Column(Numeric(10, 2), server_default="0.00", nullable=False)
+    is_admin = Column(Boolean, server_default="false", nullable=False)
 
     # Relations
     orders = relationship("Order", back_populates="user")
@@ -30,8 +33,8 @@ class MenuItem(Base):
     __tablename__ = "menu_items"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
-    purchase_price = Column(Float, nullable=False)
-    selling_price = Column(Float, nullable=False)
+    purchase_price = Column(Numeric(10, 2), nullable=False)
+    selling_price = Column(Numeric(10, 2), nullable=False)
 
     inventory_items = relationship("Inventory", back_populates="menu_item")
     orders_items = relationship("OrderItem", back_populates="menu_item")
@@ -67,7 +70,7 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True) # Les numéros de commandes
     user_id = Column(Integer, ForeignKey("users.id"))
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING,  nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relations
     user = relationship("User", back_populates="orders")
@@ -93,8 +96,8 @@ class GameLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     action_type = Column(String)
     message = Column(String)
-    amount = Column(Float, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    amount = Column(Numeric(10, 2), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relation
     user = relationship("User", back_populates="game_logs")
@@ -108,10 +111,10 @@ class PlayerProgress(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
-    total_money_earned = Column(Float, default=0.0)
+    total_money_earned = Column(Numeric(12, 2), server_default="0.00")
     total_orders = Column(Integer, default=0)
     current_level = Column(Integer, default=1)
-    total_money_spent = Column(Float, default=0.0)
+    total_money_spent = Column(Numeric(12, 2), server_default="0.00")
 
     # Relation
     user = relationship("User", back_populates="player_progress")
