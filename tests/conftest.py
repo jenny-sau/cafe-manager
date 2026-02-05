@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from database import Base
 from main import app
 from database import get_db
+from decimal import Decimal
 
 # Créer une base de données en mémoire pour les tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -72,7 +73,7 @@ def user_token(client):
     client.post("/auth/signup", json={
         "username": "user",
         "password": "secret",
-        "money": 1000,
+        "money": "1000",
         "is_admin": False
     })
 
@@ -90,7 +91,7 @@ def second_user_token(client):
     client.post("/auth/signup", json={
         "username": "user2",
         "password": "secret",
-        "money": 1000,
+        "money": "1000",
         "is_admin": False
     })
 
@@ -167,8 +168,8 @@ def menu_id(client, admin_token):
         "/menu",
         json={
             "name": "café",
-            "purchase_price": 1.0,
-            "selling_price": 1.2
+            "purchase_price": "1.00",
+            "selling_price": "1.20"
         },
         headers=headers,
     )
@@ -189,8 +190,8 @@ def menu_ids(client, admin_token):
             "/menu",
             json={
                 "name": name,
-                "purchase_price": 1.0,
-                "selling_price": 1.2
+                "purchase_price": "1.0",
+                "selling_price": "1.2"
             },
             headers=headers
         )

@@ -1,192 +1,362 @@
 # Café Manager API
 
-<a name="français"></a>
-## Français
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 
-Une API backend pour un jeu de gestion de café que j'ai développée avec FastAPI.
+Une API REST de gestion de café simulant l'expérience complète d'un commerce : approvisionnement, gestion de stock, service client et progression du joueur.
 
-Le principe : le joueur commence avec un budget, achète des produits, sert des clients et doit gérer son stock. L'API s'occupe de toute la logique derrière : authentification, vérifications du stock, calculs des coûts et bénéfices.
+**Stack technique :** FastAPI · PostgreSQL · SQLAlchemy · JWT · Docker · Pytest
+
+---
+
+## Table des matières
+
+- [Aperçu](#aperçu)
+- [Fonctionnalités](#fonctionnalités)
+- [Installation](#installation)
+- [Démarrage rapide](#démarrage-rapide)
+- [Comment ça marche](#comment-ça-marche)
+- [Architecture](#architecture)
+- [Compétences développées](#compétences-développées)
+- [Tests](#tests)
+- [Roadmap](#roadmap)
+
+---
+
+## Aperçu
+
+Café Manager est un jeu de gestion où le joueur démarre avec un budget, achète des produits, sert des clients et fait évoluer son café.
+
+**Exemple de partie :**
+```
+Budget initial : 100€
+  ↓
+Achat de 20 cafés (30€) → Stock : 20 cafés, Argent : 70€
+  ↓
+Client commande 3 cafés → Stock : 17 cafés, Argent : 79€
+  ↓
+Niveau augmente, nouveaux produits débloqués 
+```
 
 ### Pourquoi ce projet ?
 
-J'ai créé Café Manager pour apprendre FastAPI de manière concrète.
+Projet d'apprentissage personnel pour maîtriser le développement backend :
+- Construire une API REST complète depuis le début
+- Implémenter une logique métier (transactions, validations, états)
+- Comprendre l'architecture d'une application moderne (auth, DB, tests)
 
-Objectifs techniques :
-- Créer une API REST complète avec FastAPI
-- Comprendre comment fonctionne HTTP et REST
-- Implémenter une logique métier
-- Gérer l'authentification et les permissions
-- Travailler avec une base de données relationnelle
+---
 
-### Lancer le projet
+## Fonctionnalités
+
+### Pour les joueurs
+- **Authentification** : Inscription, connexion, JWT (24h)
+- **Réapprovisionnement** : Acheter des produits pour son stock
+- **Inventaire** : Consulter son stock 
+- **Commandes clients** : Servir ou annuler les demandes
+- **Statistiques** : Suivre ses bénéfices, niveau, historique
+
+### Pour les admins
+- **Gestion du menu** : Ajouter/modifier/supprimer des produits
+- **Gestion des utilisateurs** : CRUD complet
+- **Stats globales** : Vue d'ensemble du jeu
+
+---
+
+## Installation
+
+### Prérequis
+- Python 3.11+
+- Docker & Docker Compose
+
+### Étapes
 ```bash
+# 1. Cloner le projet
 git clone https://github.com/jenny-sau/cafe-manager.git
 cd cafe-manager
+
+# 2. Créer l'environnement virtuel
 python -m venv venv
-venv\Scripts\activate  # Sur Windows
+
+# Activer l'environnement
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# 3. Installer les dépendances
 pip install -r requirements.txt
+
+# 4. Lancer PostgreSQL (Docker)
+docker compose up -d
+
+# 5. Lancer l'API
 uvicorn main:app --reload
 ```
 
-L'API tourne sur http://127.0.0.1:8000  
-Documentation interactive : http://127.0.0.1:8000/docs
+** API disponible sur :** http://127.0.0.1:8000  
+**Documentation interactive :** http://127.0.0.1:8000/docs
 
-### Démarrage rapide
+---
 
-Pour tester l'API :
+## Démarrage rapide
 
-1. **Créer un compte** via `POST /auth/signup` avec un username, password et argent de départ
-2. **Se connecter** via `POST /auth/login` pour récupérer un token JWT (valide 24h)
-3. **Utiliser le token** : dans Swagger, cliquer sur "Authorize" et coller le token
-4. **Tester les endpoints protégés** comme l'inventaire ou les commandes
-
-Exemple pour s'inscrire :
-```json
+### 1. Créer un compte
+```bash
 POST /auth/signup
+```
+```json
 {
-  "username": "votre_username",
-  "password": "votre_password",
+  "username": "maria",
+  "password": "secret123",
   "money": 100.0
 }
 ```
 
-### Architecture
+### 2. Se connecter
+```bash
+POST /auth/login
+```
+```json
+{
+  "username": "maria",
+  "password": "secret123"
+}
+```
 
-#### Models (Base de données)
+**Réponse :**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
 
-- **User** : Les joueurs et les administrateurs du jeu
-- **MenuItem** : Les produits disponibles (café, croissant...)
-- **Inventory** : Le stock actuel de chaque joueur
-- **Order** : Les commandes clients avec leur statut (pending, completed, cancelled)
-- **GameLog** : L'historique complet de toutes les actions
-- **PlayerProgress** : Les statistiques et le niveau de progression de chaque joueur
+### 3. Utiliser le token
 
-#### Endpoints principaux
+Dans Swagger UI (http://127.0.0.1:8000/docs) :
+1. Cliquer sur le bouton **"Authorize"** 
+2. Coller le token récupéré
+3. Tous les endpoints protégés sont maintenant accessibles !
 
-**Authentification**
-- `POST /auth/signup` - Créer un compte
-- `POST /auth/login` - Se connecter et récupérer un JWT
+### 4. Tester un workflow complet
+```bash
+# Voir le menu
+GET /menu
 
-**Menu** (POST/PUT/DELETE réservés aux admins)
-- `GET /menu` - Voir la liste des produits
-- `POST /menu` - Ajouter un produit (admin seulement)
-- `PUT /menu/{id}` - Modifier un produit (admin seulement)
-- `DELETE /menu/{id}` - Supprimer un produit (admin seulement)
+# Acheter 10 cafés
+POST /order/restock
+{
+  "item_id": 1,
+  "quantity": 10
+}
 
-**Inventaire & Commandes** (authentification requise)
-- `POST /order/restock` - Acheter des produits (le stock augmente, l'argent diminue)
-- `GET /inventory` - Consulter son stock
-- `POST /order/client` - Une nouvelle commande client arrive (status: pending)
-- `PATCH /order/{id}/complete` - Servir le client (le stock diminue, l'argent augmente, status: completed)
-- `PATCH /order/{id}/cancel` - Annuler une commande (status: cancelled)
+# Vérifier son inventaire
+GET /inventory
 
-**Stats & Historique** (authentification requise)
-- `GET /game/history` - Voir l'historique de ses actions
-- `GET /game/stats` - Consulter ses statistiques (argent, niveau, bénéfices...)
-- `GET /admin/stats` - Voir les stats globales du jeu (admin seulement)
+# Une commande client arrive
+POST /order/client
+{
+  "item_id": 1,
+  "quantity": 2
+}
+
+# Servir le client
+PATCH /order/{order_id}/complete
+```
+
+---
 
 ## Comment ça marche
-### Restock workflow
 
-- Vérification du solde du joueur
-- Décrémentation de l’argent
-- Incrémentation du stock
-- Action enregistrée dans l’historique
-
-### Orders workflow
-
-Les commandes suivent un cycle de vie basé sur un statut :
-
-- **PENDING** : commande créée, aucun impact sur le stock ou l’argent
-- **COMPLETED** : stock décrémenté, argent crédité (transaction atomique)
-- **CANCELLED** : commande annulée sans effet métier
-
-Les transitions sont strictement contrôlées :
-- `PENDING → COMPLETED`
-- `PENDING → CANCELLED`
-
-
-### Exemple:
-#### 1. Réapprovisionnement
+### Workflow : Réapprovisionnement
 ```
-Le joueur achète 10 cafés à 1.50€ l'unité
-  ↓
-L'API vérifie s'il a au moins 15€
-  ↓
-Si oui : le stock augmente de 10, l'argent diminue de 15€, l'action est loggée
-Si non : erreur 400 "Pas assez d'argent"
+Joueur veut acheter 10 cafés à 1.50€/unité
+          ↓
+API vérifie : a-t-il 15€ ?
+          ↓
+    OUI                 NON
+     ↓                   ↓
+Stock +10          Erreur 400
+Argent -15€        "Fonds insuffisants"
+Action loggée
 ```
 
-#### 2. Commande client
+### Workflow : Commande client
 ```
-Un client commande 2 cafés
-  ↓
-Une commande est créée avec le statut "pending"
-  ↓
-Le joueur clique sur "Servir"
-  ↓
-L'API vérifie s'il a au moins 2 cafés en stock
-  ↓
-Si oui : le stock diminue de 2, l'argent augmente de 6€ (prix de vente), statut passe à "completed"
-Si non : erreur 400 "Stock insuffisant"
-```
-
-#### 3. Commande annulée
-```
-Le client part avant d'être servi
-  ↓
-Le joueur clique sur "Annuler"
-  ↓
-Le statut passe à "cancelled" (aucun changement de stock ou d'argent)
+Client commande 2 cafés (prix vente : 3€/unité)
+          ↓
+Commande créée (status: PENDING)
+          ↓
+Joueur clique "Servir"
+          ↓
+API vérifie : 2 cafés en stock ?
+          ↓
+    OUI                 NON
+     ↓                   ↓
+Stock -2           Erreur 400
+Argent +6€         "Stock insuffisant"
+Status: COMPLETED
 ```
 
-### Stack technique
+### Cycle de vie des commandes
 
-- **FastAPI** - Framework web moderne pour Python
-- **SQLAlchemy** - ORM pour gérer la base de données
-- **SQLite** - Base de données pour le développement (migration vers PostgreSQL prévue)
-- **JWT** - Authentification par tokens
-- **bcrypt** - Hash sécurisé des mots de passe
-- **Pydantic** - Validation automatique des données
+Les commandes suivent un système d'états strict :
+```
+PENDING → COMPLETED  (stock décrémenté, argent crédité)
+   ↓
+CANCELLED (aucun effet sur stock/argent)
+```
 
-### Ce que j'ai appris
+**Transitions interdites :**
+- `COMPLETED → PENDING`
+- `CANCELLED → COMPLETED`
 
-En développant ce projet, j'ai vraiment travaillé sur :
-- Les routes, dépendances et validation avec FastAPI
-- SQLAlchemy et les relations entre tables
-- L'authentification JWT et le hashage des mots de passe
-- Comment structurer un projet backend (séparation models, schemas, auth)
-- Implémenter une vraie logique métier avec vérifications et calculs
+---
 
-### Ce que je veux améliorer
+## Architecture
 
-Le projet est fonctionnel mais il manque encore pas mal de choses :
+### Models (Base de données)
 
-Features manquantes :
-- Permettre plusieurs produits dans une même commande client (ex: 2 cafés + 1 croissant en une fois)
-- Tests automatisés avec pytest
-- Migration vers PostgreSQL
-- Une vraie interface graphique pour jouer
-- Pipeline CI/CD
+| Table | Description                                        |
+|-------|----------------------------------------------------|
+| **User** | Joueurs et administrateurs                         |
+| **MenuItem** | Produits au menu (café, croissant...)              |
+| **Inventory** | Stock actuel de chaque joueur                      |
+| **Order** | Commandes avec statut (pending/completed/cancelled) |
+| **GameLog** | Historique complet des actions                     |
+| **PlayerProgress** | Niveau et statistiques des joueurs                 |
 
-Features de jeu à ajouter :
-- Des événements aléatoires (rush du matin, promotions)
-- Plus de statistiques (produit le plus vendu, argent gagné par jour...)
+### Endpoints principaux
 
-### Tests
+#### Authentification (publique)
+```
+POST   /auth/signup    Créer un compte
+POST   /auth/login     Se connecter (JWT)
+```
 
-Pour l'instant j'ai tout testé manuellement via Swagger :
-- Création de compte et connexion : ça marche
-- Tokens invalides ou expirés : bien rejetés
-- Commander sans assez de stock : erreur correcte
-- Commander sans assez d'argent : erreur correcte
-- Mise à jour du stock après une commande : fonctionne
-- Routes protégées sans token : erreur 403
+#### Menu
+```
+GET    /menu           Lister les produits
+POST   /menu           Ajouter un produit (admin)
+PUT    /menu/{id}      Modifier un produit (admin)
+DELETE /menu/{id}      Supprimer un produit (admin)
+```
 
-Il faut que j'automatise tout ça avec pytest.
+#### Inventaire & Commandes (authentifié)
+```
+POST   /order/restock         Acheter du stock
+GET    /inventory             Consulter son inventaire
+POST   /order/client          Nouvelle commande client
+PATCH  /order/{id}/complete   Servir le client
+PATCH  /order/{id}/cancel     Annuler la commande
+```
 
-### Notes techniques
+#### Statistiques
+```
+GET    /game/history    Historique personnel
+GET    /game/stats      Statistiques personnelles
+GET    /admin/stats     Stats globales (admin)
+```
 
-La `SECRET_KEY` dans `auth.py` est écrite en dur pour le développement. En production il faudrait absolument la mettre dans une variable d'environnement.
+---
 
-Pour tester, le plus simple c'est de créer un compte sur Swagger, te connecter, et essayer de passer quelques commandes pour voir comment ça réagit.
+## Compétences développées
+
+### Backend & API
+- Architecture REST avec **FastAPI** (routes, dépendances, validation automatique)
+- Injection de dépendances pour l'authentification
+- Documentation auto-générée (OpenAPI/Swagger)
+
+### Base de données
+- Modélisation relationnelle avec **SQLAlchemy** (relations One-to-Many, Foreign Keys)
+- Migrations de schéma avec **Alembic**
+- Transactions atomiques (stock + argent modifiés ensemble ou pas du tout)
+
+### Sécurité
+- Authentification **JWT** avec expiration (24h)
+- Hash des mots de passe avec **bcrypt**
+- Gestion des rôles (RBAC : admin vs joueur)
+
+### Logique métier
+- Machine à états pour les commandes (transitions contrôlées)
+- Validations métier (stock suffisant, fonds disponibles)
+- Calculs automatiques (bénéfices, coûts)
+
+### DevOps & Tests
+- Conteneurisation avec **Docker** (PostgreSQL)
+- Tests automatisés avec **pytest** (auth, permissions, logique)
+- Gestion de deux environnements (dev:5432, test:5433)
+
+---
+
+## Tests
+
+Tests automatisés avec **pytest** couvrant :
+
+### Authentification
+- Inscription (signup) et validation des données
+- Gestion des doublons (username déjà pris)
+- Connexion (login) et génération du JWT
+- Cas d'erreur : identifiants invalides, token manquant/expiré
+
+### Permissions
+- Accès autorisé pour utilisateurs authentifiés
+- Blocage des utilisateurs non authentifiés (401)
+- Restriction des routes admin (403 pour les joueurs)
+
+### Logique métier
+- Réapprovisionnement (vérification du solde)
+- Gestion de l'inventaire (incréments/décréments)
+- Commandes clients (workflow complet PENDING → COMPLETED)
+- Cas d'erreur : stock insuffisant, fonds insuffisants
+
+**Tous les tests passent actuellement ✅**
+```bash
+# Lancer les tests
+pytest
+
+# Avec couverture
+pytest --cov=app tests/
+```
+
+---
+
+## Configuration
+
+### Ports utilisés
+
+| Service | Port | Description |
+|---------|------|-------------|
+| PostgreSQL (dev) | 5432 | Base de données principale |
+| PostgreSQL (test) | 5433 | Base de données pour pytest |
+| FastAPI | 8000 | API |
+
+**Important :** Aucun PostgreSQL ne doit tourner nativement sur Windows. Tout est géré via Docker.
+
+### Sécurité
+
+**Note de sécurité :** La `SECRET_KEY` dans `auth.py` est actuellement écrite en dur pour le développement.
+
+**En production, utiliser des variables d'environnement :**
+```bash
+# Méthode 1 : Export direct
+export SECRET_KEY="votre-clé-ultra-sécurisée-de-32-caractères"
+
+# Méthode 2 : Fichier .env
+# .env
+SECRET_KEY=votre-clé-ultra-sécurisée
+DATABASE_URL=postgresql://user:pass@host/db
+```
+
+Puis charger avec `python-dotenv` :
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+
+
+
+---
+
+**Questions ?** N'hésite pas à ouvrir une issue ou à me contacter: jenny.saucy@outlook.com :)

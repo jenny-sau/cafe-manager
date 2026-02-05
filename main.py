@@ -1,4 +1,5 @@
 import math
+from decimal import Decimal, ROUND_HALF_UP
 from logging import raiseExceptions
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
@@ -25,20 +26,26 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(".env")
+
 import os
 print("DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 
 # ----------------------
 # CRÉATION DE LA BASE DE DONNÉES
+# -> Ne pas utiliser en prod
+# La création du schéma est gérée par Alembic
 # ----------------------
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 # ----------------------
 # INITIALISATION DE L'APPLICATION FASTAPI
 # ----------------------
-app = FastAPI()
+app = FastAPI(
+    title = "Café Manager API",
+    description="API REST pour la gestion d'un café virtuel."
+)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -106,7 +113,7 @@ def log_action(
     user_id: int,
     action_type: str,
     message: str,
-    amount: float = 0.0
+    amount: Decimal = Decimal("0.00")
 ):
     log = models.GameLog(
         user_id=user_id,
@@ -123,14 +130,14 @@ def log_action(
     if not progress:
         progress = models.PlayerProgress(
             user_id=user_id,
-            total_money_earned=0.0,
-            total_money_spent=0.0,
+            total_money_earned=Decimal("0.00"),
+            total_money_spent=Decimal("0.00"),
             total_orders=0,
             current_level=1
         )
         db.add(progress)
 
-    if amount > 0:
+    if amount > Decimal("0.00"):
         progress.total_money_earned += amount
         progress.total_orders += 1
     else:
@@ -666,7 +673,7 @@ def complete_order(
             raise HTTPException(status_code=400, detail="Not enough stock")
 
     #Effets
-    total = 0
+    total = Decimal("0.00")
     for item in order_items:
         inventory = db.query(models.Inventory).filter(
             models.Inventory.user_id == current_user.id,
@@ -893,7 +900,7 @@ async def signup_form(
         request: Request,
         username: str = Form(...),
         password: str = Form(...),
-        money: float = Form(1000),
+        money: Decimal = Form(Decimal("1000.00")),
         db: Session = Depends(get_db)
 ):
     """Traiter le formulaire d'inscription."""
@@ -980,10 +987,10 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         if not progress:
             progress = models.PlayerProgress(
                 user_id=user.id,
-                total_money_earned=0.0,
+                total_money_earned=Decimal("0.00"),
                 total_orders=0,
                 current_level=1,
-                total_money_spent=0.0
+                total_money_spent=Decimal("0.00")
             )
             db.add(progress)
             db.commit()
@@ -1135,10 +1142,10 @@ async def stats(request: Request, db: Session = Depends(get_db)):
         if not progress:
             progress = models.PlayerProgress(
                 user_id=user.id,
-                total_money_earned=0.0,
+                total_money_earned=Decimal("0.00"),
                 total_orders=0,
                 current_level=1,
-                total_money_spent=0.0
+                total_money_spent=Decimal("0.00")
             )
             db.add(progress)
             db.commit()

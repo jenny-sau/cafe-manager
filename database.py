@@ -1,21 +1,32 @@
+import os
+from dotenv import load_dotenv
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# URL de connexion à la base SQLite (fichier local "cafe.db")
-SQLALCHEMY_DATABASE_URL = "sqlite:///./cafe.db"
+# Charge le fichier .env
+load_dotenv()
 
-# Création du moteur (engine) qui gère la connexion à SQLite
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+# Récupère l'URL de la DB depuis les variables d'environnement
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set")
+
+# Création du moteur SQLAlchemy
+engine = create_engine(DATABASE_URL)
+
+# Session DB
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
 )
 
-# Session = l’outil qui permet de dialoguer avec la DB
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base = classe mère pour tous tes futurs modèles (User, MenuItem, etc.)
+# Base pour les modèles
 Base = declarative_base()
 
+# Dépendance FastAPI
 def get_db():
     db = SessionLocal()
     try:

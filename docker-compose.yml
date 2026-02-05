@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:15
+    container_name: cafe_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: cafe_user
+      POSTGRES_PASSWORD: CafeUser2026Secure
+      POSTGRES_DB: cafe_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
