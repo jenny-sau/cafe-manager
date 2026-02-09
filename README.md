@@ -319,7 +319,7 @@ Tests automatisés avec **pytest** couvrant :
 - Commandes clients (workflow complet PENDING → COMPLETED)
 - Cas d'erreur : stock insuffisant, fonds insuffisants
 
-**Tous les tests passent actuellement ✅**
+**Tous les tests passent actuellement **
 ```bash
 # Lancer les tests
 pytest

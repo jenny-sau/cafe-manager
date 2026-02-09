@@ -22,6 +22,7 @@ A backend REST API for a café management game, simulating real business workflo
 - [Architecture](#architecture)
 - [Skills demonstrated](#skills-demonstrated)
 - [Tests](#tests)
+- [Configuration](#configuration)
 
 
 ## Overview
@@ -321,15 +322,17 @@ Automated tests using **pytest** cover:
 - Customer orders (full workflow: PENDING → COMPLETED)
 - Error cases: insufficient stock, insufficient funds
 
-**All tests are currently passing ✅**
+** All tests are currently passing **
 ```bash
-# Run tests
+# Lancer les tests
 pytest
 
-# With coverage
+# Avec couverture
 pytest --cov=app tests/
+```
 
 ---
+
 ## Configuration
 
 ### Used ports
