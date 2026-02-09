@@ -12,6 +12,18 @@ A backend REST API for a café management game, simulating real business workflo
 **Tech stack:** FastAPI · PostgreSQL · SQLAlchemy · JWT · Docker · Pytest
 
 ---
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Skills demonstrated](#skills-demonstrated)
+- [Tests](#tests)
+- [Roadmap](#roadmap)
+
 
 ## Overview
 
