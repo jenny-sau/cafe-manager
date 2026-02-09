@@ -42,9 +42,43 @@ print("DATABASE_URL =", os.getenv("DATABASE_URL"))
 # ----------------------
 # INITIALISATION DE L'APPLICATION FASTAPI
 # ----------------------
+
+tags_metadata = [
+    {
+        "name": "Auth",
+        "description": "User signup and login (JWT-based)",
+    },
+    {
+        "name": "User",
+        "description": "User management endpoints (admin only)"
+    },
+    {
+        "name": "Menu",
+        "description": "Menu items available in the café",
+    },
+    {
+        "name": "Inventory",
+        "description": "Player inventory and stock management",
+    },
+    {
+        "name": "Restock",
+        "description": "Buy products and refill inventory",
+    },
+    {
+        "name": "Order",
+        "description": "Client orders lifecycle",
+    },
+    {
+        "name": "Stats",
+        "description": "Player and global statistics",
+    }
+]
+
 app = FastAPI(
     title = "Café Manager API",
-    description="API REST pour la gestion d'un café virtuel."
+    description="Backend API for a café management game",
+    version="1.0.0",
+    openapi_tags=tags_metadata
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -71,7 +105,7 @@ def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db)
 ):
-    """Vérifie que l'utilisateur est connecté."""
+    """Checks that the user is logged in."""
 
     # Récupérer le token
     token = credentials.credentials
@@ -97,7 +131,7 @@ def get_current_user(
 def get_current_admin(
     current_user: models.User = Depends(get_current_user)
 ):
-    """Vérifie que l'utilisateur connecté est admin."""
+    """Verify that the logged-in user is an admin."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=403,
@@ -148,20 +182,20 @@ def log_action(
 # ----------------------
 # @app.get("/")
 # async def root():
-#     """Page d'accueil simple."""
+#     """Simple homepage."""
 #     return {"message": "Welcome to cafe manager"}
 
 
 @app.get("/health")
 async def health():
-    """Vérifie que l'application fonctionne."""
+    """Check that the application is working."""
     return {"status": "ok"}
 
 # --------------------------
 # AUTHENTIFICATION
 # --------------------------
 @app.post(
-    "/auth/signup",
+    "/auth/signup", tags=["Auth"],
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED
 )
@@ -170,7 +204,7 @@ def signup(
         request: Request,
         user: UserSignup, db: Session = Depends(get_db)
 ):
-    """Créer un nouveau compte utilisateur."""
+    """Create a new user account."""
     existing_user = db.query(models.User).filter(
         models.User.username == user.username
     ).first()
@@ -194,7 +228,7 @@ def signup(
     return db_user
 
 @app.post(
-    "/auth/login",
+    "/auth/login", tags=["Auth"],
     response_model=TokenOut,
     status_code=status.HTTP_200_OK
 )
@@ -202,7 +236,7 @@ def login(
         credentials: UserLogin,
         db: Session = Depends(get_db)
 ):
-    """Se connecter et recevoir un JWT token."""
+    """Log in and receive a JWT token."""
 
     user = db.query(models.User).filter(
         models.User.username == credentials.username
@@ -224,13 +258,13 @@ def login(
 # ----------------------
 # CRUD UTILISATEURS
 # ----------------------
-@app.get("/users/{user_id}", response_model=UserOut)
+@app.get("/users/{user_id}", tags=["User"], response_model=UserOut)
 def read_user(
         user_id: int,
         db: Session = Depends(get_db),
         admin: models.User = Depends(get_current_admin)
 ):
-    """Récupère un utilisateur par son ID (admin uniquement)."""
+    """Retrieves a user by their ID (admin only)."""
 
     user = db.query(models.User).filter(models.User.id == user_id).first()
 
@@ -239,12 +273,12 @@ def read_user(
 
     return user
 
-@app.get("/users")
+@app.get("/users", tags=["User"])
 def list_all_users(
         db: Session = Depends(get_db),
         current_admin: models.User = Depends(get_current_admin)
 ):
-    """Liste tous les utilisateurs (admin uniquement)."""
+    """Lists all users (admin only)."""
     users = db.query(models.User).all()
 
     users_list = []
@@ -261,14 +295,14 @@ def list_all_users(
         "users": users_list
     }
 
-@app.put("/users/{user_id}", response_model=UserOut)
+@app.put("/users/{user_id}", tags=["User"], response_model=UserOut)
 def update_user(
     user_id: int,
     user: UserUpdate,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
-    """Modifie un utilisateur existant (admin uniquement)."""
+    """Modifies an existing user (admin only)."""
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -283,13 +317,13 @@ def update_user(
     return db_user
 
 
-@app.delete("/users/{user_id}")
+@app.delete("/users/{user_id}", tags=["User"])
 def delete_user(
         user_id: int,
         db: Session = Depends(get_db),
         admin: models.User = Depends(get_current_admin)
 ):
-    """Supprime un utilisateur (admin uniquemment)."""
+    """Delete a user (admin only)."""
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -300,7 +334,7 @@ def delete_user(
 # ----------------------
 # CRUD MENU
 # ----------------------
-@app.post("/menu",
+@app.post("/menu", tags=["Menu"],
           response_model=MenuItemOut,
           status_code=status.HTTP_201_CREATED)
 def create_menu_item(
@@ -308,7 +342,7 @@ def create_menu_item(
         db: Session = Depends(get_db),
         admin: models.User = Depends(get_current_admin)
 ):
-    """Crée un nouvel item du menu (admin uniquement)."""
+    """Creates a new menu item (admin only)."""
     db_menu_item = models.MenuItem(
         name=item.name,
         purchase_price=item.purchase_price,
@@ -319,26 +353,26 @@ def create_menu_item(
     return db_menu_item
 
 
-@app.get("/menu/{menu_id}", response_model=MenuItemOut)
+@app.get("/menu/{menu_id}", tags=["Menu"], response_model=MenuItemOut)
 def read_menu_item(
         menu_id: int,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Récupère un item du menu par son ID."""
+    """Retrieves a menu item by its ID."""
     menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
     return menu_item
 
-@app.get("/menu", response_model=MenuListResponse)
+@app.get("/menu", tags=["Menu"], response_model=MenuListResponse)
 def list_menu(
         page: int = 1,
         limit: int = 20,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Liste tous les items du menu (avec pagination)."""
+    """List all menu items (with pagination)."""
     skip = (page - 1) * limit
     all_items = db.query(models.MenuItem).offset(skip).limit(limit).all()
     total_items = db.query(models.MenuItem).count()
@@ -370,14 +404,14 @@ def list_menu(
         "items": menu_with_stock
     }
 
-@app.put("/menu/{menu_id}", response_model=MenuItemOut)
+@app.put("/menu/{menu_id}", tags=["Menu"], response_model=MenuItemOut)
 def update_menu_item(
         menu_id: int,
         menu_item: MenuItemUpdate,
         db: Session = Depends(get_db),
         admin: models.User = Depends(get_current_admin)
 ):
-    """Modifie un item du menu existant (admin uniquement)."""
+    """Modifies an item in the existing menu (admin only)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not db_menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
@@ -393,13 +427,13 @@ def update_menu_item(
     return db_menu_item
 
 
-@app.delete("/menu/{menu_id}")
+@app.delete("/menu/{menu_id}", tags=["Menu"])
 def delete_menu_item(
         menu_id: int,
         db: Session = Depends(get_db),
         admin: models.User = Depends(get_current_admin)
 ):
-    """Supprime un item du menu (admin uniquement)."""
+    """Removes an item from the menu (admin only)."""
     db_menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == menu_id).first()
     if not db_menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
@@ -410,16 +444,13 @@ def delete_menu_item(
 # ----------------------
 # RÉAPPROVISIONNEMENT PAR LE JOUEUR
 # ----------------------
-@app.post("/order/restock", response_model=InventoryItemOut)
+@app.post("/order/restock", tags=["Restock"], response_model=InventoryItemOut)
 def restock_item(
         order: RestockCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """
-        Passe une commande pour le café.
-        Cela augmente le stock de l'inventaire du joueur et diminue l'argent au joueur et log l'action.
-        """
+    """ Place a coffee order. This increases the player's inventory and decreases the player's money, and logs the action."""
 
     menu_item = db.query(models.MenuItem).filter(
         models.MenuItem.id == order.menu_item_id
@@ -466,14 +497,12 @@ def restock_item(
 # ----------------------
 # CRUD INVENTAIRE
 # ----------------------
-@app.get("/inventory", response_model=InventoryOut)
+@app.get("/inventory", tags=["Inventory"], response_model=InventoryOut)
 def list_inventory(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """
-            Consulte l'inventaire des produits que le café a en stock.
-            """
+    """Check the inventory of products that the cafe has in stock."""
     inventory_items = (
         db.query(models.Inventory)
         .filter(models.Inventory.user_id == current_user.id)
@@ -494,12 +523,12 @@ def list_inventory(
     return InventoryOut(items=items)
 
 
-@app.get("/inventory/{item_id}", response_model=InventoryItemOut)
+@app.get("/inventory/{item_id}", tags=["Inventory"], response_model=InventoryItemOut)
 def read_inventory(item_id: int,
                    db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)
 ):
-    """Récupère un item d'inventaire par son ID."""
+    """Retrieves an inventory item by its ID."""
     item = db.query(models.Inventory).filter(
         models.Inventory.id == item_id,
         models.Inventory.user_id == current_user.id
@@ -508,13 +537,13 @@ def read_inventory(item_id: int,
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
-@app.delete("/inventory/{item_id}")
+@app.delete("/inventory/{item_id}", tags=["Inventory"])
 def admin_delete_inventory(
         item_id: int,
         db: Session = Depends(get_db),
         current_admin: models.User = Depends(get_current_admin)
 ):
-    """Supprime n'importe quel item d'inventaire (admin uniquement)."""
+    """Deletes any inventory item (admin only)."""
 
     db_item = db.query(models.Inventory).filter(
         models.Inventory.id == item_id
@@ -547,16 +576,13 @@ def admin_delete_inventory(
 # ----------------------
 # CRUD COMMANDES CLIENTS
 # ----------------------
-@app.post("/order/client", response_model=OrderCreatedOut)
+@app.post("/order/client", tags=["Order"], response_model=OrderCreatedOut)
 def order_for_client(
         order_data: OrderCreate,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Passe une commande pour un client.
-    La commande est mise en attente.
-    """
+    """Place an order for a customer. The order is placed on hold."""
 
     #Créer la commande globale
     order = models.Order(
@@ -607,15 +633,13 @@ def order_for_client(
         "items": response_items
     }
 
-@app.get("/orders/{order_id}", response_model=OrderDetailOut)
+@app.get("/orders/{order_id}", tags=["Order"], response_model=OrderDetailOut)
 def read_order(
         order_id: int,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Consulter le détail de la commande.
-    """
+    """View order details."""
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
     # Vérification:
@@ -643,16 +667,13 @@ def read_order(
         "items" : items_response
     }
 
-@app.patch("/orders/{order_id}/complete", response_model=OrderStatusOut)
+@app.patch("/orders/{order_id}/complete", tags=["Order"], response_model=OrderStatusOut)
 def complete_order(
     order_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Change le statut d'une commande de PENDING à COMPLETED.
-    Retire le stock, ajoute l'argent au joueur et log l'action.
-    """
+    """Changes the status of an order from PENDING to COMPLETED. Removes the stock, adds the money to the player, and logs the action."""
 
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     # Vérifications:
@@ -707,16 +728,13 @@ def complete_order(
     "order_id" : order.id
     }
 
-@app.patch("/orders/{order_id}/cancel", response_model=OrderStatusOut)
+@app.patch("/orders/{order_id}/cancel", tags=["Order"], response_model=OrderStatusOut)
 def cancel_order(
     order_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Change le statut d'une commande de PENDING à CANCELLED.
-    Le joueur n'a pas réussi à faire la commande à temps, la commande est annulée.
-    """
+    """Changes the status of an order from PENDING to CANCELLED. The player failed to complete the order in time; the order is canceled."""
 
     #Vérificiations
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
@@ -747,7 +765,7 @@ def cancel_order(
         "order_id": order.id
     }
 
-@app.get("/admin/orders", response_model=PaginatedAdminOrdersOut)
+@app.get("/admin/orders", tags=["Order"], response_model=PaginatedAdminOrdersOut)
 def list_all_orders(
     page: int = 1,
     limit: int = 20,
@@ -756,7 +774,7 @@ def list_all_orders(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_admin)
 ):
-    """Liste toutes les commandes de tous les joueurs (admin uniquement)."""
+    """Lists all commands for all players (admin only)."""
 
     query = db.query(models.Order)
     if status:
@@ -785,12 +803,12 @@ def list_all_orders(
 # ROUTES POUR LES STATISTIQUES DU JEU
 # --------------------------
 
-@app.get("/admin/stats")
+@app.get("/admin/stats", tags=["Stats"])
 def get_global_stats(
         db: Session = Depends(get_db),
         current_admin: models.User = Depends(get_current_admin)  #Admin requis
 ):
-    """Statistiques globales du jeu (admin uniquement)."""
+    """Overall game statistics (admin only)."""
 
     # Compter les utilisateurs
     total_users = db.query(models.User).count()
@@ -820,12 +838,12 @@ def get_global_stats(
         }
     }
 
-@app.get("/game/history")
+@app.get("/game/history", tags=["Stats"])
 def get_game_history(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Récupère l'historique complet des actions du joueur."""
+    """Retrieves the player's complete action history."""
 
     logs = db.query(models.GameLog).filter(
         models.GameLog.user_id == current_user.id
@@ -843,12 +861,12 @@ def get_game_history(
     }
 
 
-@app.get("/game/stats")
+@app.get("/game/stats", tags=["Stats"])
 def get_game_stats(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """Récupère les statistiques cumulatives du joueur."""
+    """Retrieves the player's cumulative statistics."""
 
     # Récupérer ou créer PlayerProgress
     progress = db.query(models.PlayerProgress).filter(
@@ -885,13 +903,13 @@ def get_game_stats(
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def home(request: Request):
-    """Page d'accueil."""
+    """Home page."""
     return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/signup", response_class=HTMLResponse, include_in_schema=False)
 async def signup_page(request: Request):
-    """Page d'inscription."""
+    """Registration page."""
     return templates.TemplateResponse("signup.html", {"request": request})
 
 
@@ -903,7 +921,7 @@ async def signup_form(
         money: Decimal = Form(Decimal("1000.00")),
         db: Session = Depends(get_db)
 ):
-    """Traiter le formulaire d'inscription."""
+    """Process the registration form."""
     existing_user = db.query(models.User).filter(
         models.User.username == username
     ).first()
@@ -930,7 +948,7 @@ async def signup_form(
 
 @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(request: Request, success: int = 0):
-    """Page de connexion."""
+    """Login page."""
     success_msg = "Compte créé avec succès ! Vous pouvez vous connecter." if success else None
     return templates.TemplateResponse(
         "login.html",
@@ -945,7 +963,7 @@ async def login_form(
         password: str = Form(...),
         db: Session = Depends(get_db)
 ):
-    """Traiter le formulaire de connexion."""
+    """Process the login form."""
     user = db.query(models.User).filter(
         models.User.username == username
     ).first()
@@ -965,7 +983,7 @@ async def login_form(
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
-    """Page dashboard du joueur."""
+    """Player dashboard page."""
     token = request.cookies.get("access_token")
 
     if not token:
@@ -1055,7 +1073,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/logout", include_in_schema=False)
 async def logout():
-    """Déconnexion."""
+    """Log out."""
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie("access_token")
     return response
@@ -1063,7 +1081,7 @@ async def logout():
 
 @app.get("/stock", response_class=HTMLResponse, include_in_schema=False)
 async def stock(request: Request, db: Session = Depends(get_db)):
-    """Page de gestion du stock."""
+    """Stock management page."""
     token = request.cookies.get("access_token")
 
     if not token:
