@@ -1,3 +1,8 @@
+🇫🇷 Français | [🇬🇧 English](README_EN.md)
+
+# Café Manager API
+...
+
 # Café Manager API
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
@@ -5,7 +10,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 
-Une API REST de gestion de café simulant l'expérience complète d'un commerce : approvisionnement, gestion de stock, service client et progression du joueur.
+Une API REST backend pour un jeu de gestion de café, avec logique métier complète : approvisionnement, stock, commandes clients et progression du joueur.
 
 **Stack technique :** FastAPI · PostgreSQL · SQLAlchemy · JWT · Docker · Pytest
 
@@ -39,6 +44,11 @@ Client commande 3 cafés → Stock : 17 cafés, Argent : 79€
   ↓
 Niveau augmente, nouveaux produits débloqués 
 ```
+### Swagger UI structuré
+![Swagger overview](screenshots/swagger-overview.png)
+
+### Exemple flux de travail métier
+![Order workflow](screenshots/swagger-order-example.png)
 
 ### Pourquoi ce projet ?
 
@@ -109,7 +119,8 @@ POST /auth/signup
 {
   "username": "maria",
   "password": "secret123",
-  "money": 100.0
+  "money": 100.0,
+  "is_admin": true # Pour tester toutes les fonctionnalités, créer un compte admin
 }
 ```
 
