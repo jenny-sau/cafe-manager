@@ -1,9 +1,6 @@
 🇫🇷 Français | [🇬🇧 English](README_EN.md)
 
 # Café Manager API
-...
-
-# Café Manager API
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)

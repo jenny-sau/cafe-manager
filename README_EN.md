@@ -1,4 +1,4 @@
-[🇫🇷 Français](READ_ME.md) | 🇬🇧 English
+[🇫🇷 Français](README.md) | 🇬🇧 English
 
 # Café Manager API
 
@@ -30,10 +30,10 @@ Level up, new products unlocked
 
 ```
 ### Structured Swagger UI
-![Swagger overview](screenshots/swagger-overview.png)
+![Swagger overview](./screenshots/swagger-overview.png)
 
 ### Business workflow example
-![Order workflow](screenshots/swagger-order-example.png)
+![Order workflow](./screenshots/swagger-order-example.png)
 
 ### Why this project?
 
