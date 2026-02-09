@@ -23,7 +23,7 @@ Une API REST backend pour un jeu de gestion de café, avec logique métier compl
 - [Architecture](#architecture)
 - [Compétences développées](#compétences-développées)
 - [Tests](#tests)
-- [Roadmap](#roadmap)
+- [Configuration](configuration)
 
 ---
 

@@ -22,7 +22,6 @@ A backend REST API for a café management game, simulating real business workflo
 - [Architecture](#architecture)
 - [Skills demonstrated](#skills-demonstrated)
 - [Tests](#tests)
-- [Roadmap](#roadmap)
 
 
 ## Overview
