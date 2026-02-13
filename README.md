@@ -5,7 +5,6 @@
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 
 Une API REST backend pour un jeu de gestion de café, avec logique métier complète : approvisionnement, stock, commandes clients et progression du joueur.
 
@@ -23,7 +22,7 @@ Une API REST backend pour un jeu de gestion de café, avec logique métier compl
 - [Architecture](#architecture)
 - [Compétences développées](#compétences-développées)
 - [Tests](#tests)
-- [Configuration](configuration)
+- [Configuration](#configuration)
 
 ---
 
@@ -41,6 +40,7 @@ Client commande 3 cafés → Stock : 17 cafés, Argent : 79€
   ↓
 Niveau augmente, nouveaux produits débloqués 
 ```
+
 ### Swagger UI structuré
 ![Swagger overview](screenshots/swagger-overview.png)
 
@@ -101,7 +101,7 @@ docker compose up -d
 uvicorn main:app --reload
 ```
 
-** API disponible sur :** http://127.0.0.1:8000  
+**API disponible sur :** http://127.0.0.1:8000  
 **Documentation interactive :** http://127.0.0.1:8000/docs
 
 ---
@@ -117,7 +117,7 @@ POST /auth/signup
   "username": "maria",
   "password": "secret123",
   "money": 100.0,
-  "is_admin": true # Pour tester toutes les fonctionnalités, créer un compte admin
+  "is_admin": true
 }
 ```
 
@@ -209,7 +209,7 @@ Status: COMPLETED
 
 ### Cycle de vie des commandes
 
-Les commandes suivent un système d'états strict :
+Les commandes suivent un système de validation de statuts :
 ```
 PENDING → COMPLETED  (stock décrémenté, argent crédité)
    ↓
@@ -219,6 +219,8 @@ CANCELLED (aucun effet sur stock/argent)
 **Transitions interdites :**
 - `COMPLETED → PENDING`
 - `CANCELLED → COMPLETED`
+
+Ces transitions sont validées via des guards (`if status != PENDING`) dans les endpoints.
 
 ---
 
@@ -275,21 +277,24 @@ GET    /admin/stats     Stats globales (admin)
 - Architecture REST avec **FastAPI** (routes, dépendances, validation automatique)
 - Injection de dépendances pour l'authentification
 - Documentation auto-générée (OpenAPI/Swagger)
+- Validation des données avec **Pydantic**
 
 ### Base de données
 - Modélisation relationnelle avec **SQLAlchemy** (relations One-to-Many, Foreign Keys)
 - Migrations de schéma avec **Alembic**
-- Transactions atomiques (stock + argent modifiés ensemble ou pas du tout)
+- Gestion des erreurs avec try/except et rollback
 
 ### Sécurité
 - Authentification **JWT** avec expiration (24h)
 - Hash des mots de passe avec **bcrypt**
-- Gestion des rôles (RBAC : admin vs joueur)
+- Gestion des rôles (admin vs joueur)
+- Rate limiting avec **slowapi** (protection anti-spam)
 
 ### Logique métier
-- Machine à états pour les commandes (transitions contrôlées)
+- Validation des transitions de statuts (PENDING → COMPLETED/CANCELLED)
 - Validations métier (stock suffisant, fonds disponibles)
 - Calculs automatiques (bénéfices, coûts)
+- Système de logs pour historique des actions
 
 ### DevOps & Tests
 - Conteneurisation avec **Docker** (PostgreSQL)
@@ -319,7 +324,10 @@ Tests automatisés avec **pytest** couvrant :
 - Commandes clients (workflow complet PENDING → COMPLETED)
 - Cas d'erreur : stock insuffisant, fonds insuffisants
 
-**Tous les tests passent actuellement **
+**Couverture actuelle :**
+- Tests unitaires (happy path)
+- Tests d'erreur (edge cases)
+
 ```bash
 # Lancer les tests
 pytest
@@ -329,6 +337,19 @@ pytest --cov=app tests/
 ```
 
 ---
+
+
+## Améliorations futures
+
+### Améliorations techniques prévues
+
+- Mise en place d’un logging structuré (niveau INFO/WARNING/ERROR)
+- Factorisation du code pour réduire les répétitions
+- Ajout de tests couvrant des cas extrêmes et scénarios limites
+- Amélioration de la maintenabilité globale
+
+---
+
 
 ## Configuration
 
@@ -363,8 +384,18 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
+---
 
+## Ce que j'ai appris
 
+Au-delà du code, ce projet m'a permis de comprendre :
+
+### Concepts techniques
+- Différence entre `def` et `async def` (et quand les utiliser)
+- Importance des transactions atomiques en DB
+- Problèmes de concurrence (race conditions)
+- Pourquoi les FSM sont importantes pour les workflows complexes
 ---
 
 **Questions ?** N'hésite pas à ouvrir une issue ou à me contacter: jenny.saucy@outlook.com :)
+
