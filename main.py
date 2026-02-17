@@ -452,6 +452,13 @@ def restock_item(
         current_user: models.User = Depends(get_current_user)
 ):
     """ Place a coffee order. This increases the player's inventory and decreases the player's money, and logs the action."""
+    # Lock the user (to secure the money)
+    user = (
+        db.query(models.User)
+        .filter(models.User.id == current_user.id)
+        .with_for_update()
+        .first()
+    )
 
     menu_item = db.query(models.MenuItem).filter(
         models.MenuItem.id == order.menu_item_id
@@ -462,15 +469,17 @@ def restock_item(
 
     montant_depense = menu_item.purchase_price * order.quantity
 
-    if current_user.money < montant_depense:
+    if user.money < montant_depense:
         raise HTTPException(status_code=400, detail="Pas assez d'argent !")
 
-    current_user.money -= montant_depense
-
-    inventory_item = db.query(models.Inventory).filter(
+    user.money -= montant_depense
+    #Lock the inventory if it exists
+    inventory_item = (db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
-        models.Inventory.user_id == current_user.id
-    ).first()
+        models.Inventory.user_id == user.id
+    )
+        .with_for_update()
+        .first())
 
     if not inventory_item:
         inventory_item = models.Inventory(
@@ -697,10 +706,12 @@ def complete_order(
     #Effets
     total = Decimal("0.00")
     for item in order_items:
-        inventory = db.query(models.Inventory).filter(
+        inventory = (db.query(models.Inventory).filter(
             models.Inventory.user_id == current_user.id,
             models.Inventory.menu_item_id == item.menu_item_id
-        ).first()
+        )
+        .with_for_update()
+        .first())
 
         menu_item = db.query(models.MenuItem).filter(
             models.MenuItem.id == item.menu_item_id).first()
