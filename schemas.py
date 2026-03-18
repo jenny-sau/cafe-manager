@@ -3,32 +3,69 @@ from datetime import datetime
 from typing import Optional
 from enum import Enum
 
-# --------------------------
-# UTILISATEUR
-# --------------------------
-class UserCreate(BaseModel):
-    """Données pour créer un utilisateur."""
+# ------------------------------------------------------------------------------------
+# AUTHENTIFICATION
+# ------------------------------------------------------------------------------------
+
+class UserSignup(BaseModel):
+    """Information needed to create an account."""
     username: str
+    password: str
     money: float = 0.0
 
+    @field_validator('username')
+    @classmethod
+    def username_not_empty(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('The username must be at least 3 characters long')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_strong_enough(cls, v):
+        if len(v) < 6:
+            raise ValueError('The password must be at least 6 characters long')
+        return v
+
+
+class UserResponse(BaseModel):
+    """User returned  after signup/login (WITHOUT a password)."""
+    id: int
+    username: str
+    money: float
+    is_admin: bool
+    model_config = {"from_attributes": True}
+
+class UserLogin(BaseModel):
+    """Login credentials."""
+    username: str
+    password: str
+
+# ------------------------------------------------------------------------------------
+# USER
+# ------------------------------------------------------------------------------------
 
 class UserOut(BaseModel):
-    """Utilisateur retourné par l’API."""
+    """User data returned by the API (id, username, money). No sensitive fields exposed."""
     id: int
     username: str
     money: float
     model_config = {"from_attributes": True}
 
 class UserUpdate(BaseModel):
+    """Fields allowed when updating a user. All fields are optional."""
     username: Optional[str] = None
-    money: Optional[int] = None
+    money: Optional[float] = None
 
 class TokenOut(BaseModel):
+    """JWT token returned after a successful login."""
     access_token: str
     token_type: str = "bearer"
-# --------------------------
+
+# ------------------------------------------------------------------------------------
 # MENU ITEMS
-# --------------------------
+# ------------------------------------------------------------------------------------
+
 class MenuItemCreate(BaseModel):
     name: str
     purchase_price: float
@@ -41,7 +78,6 @@ class MenuItemCreate(BaseModel):
             raise ValueError('Le prix doit être supérieur à 0')
         return v
 
-
 class MenuItemOut(BaseModel):
     id: int
     name: str
@@ -49,7 +85,13 @@ class MenuItemOut(BaseModel):
     selling_price: float
     model_config = {"from_attributes": True}
 
+class MenuItemUpdate(BaseModel):
+    name: Optional[str]= None
+    purchase_price: Optional[float] = None
+    selling_price: Optional[float] = None
+
 class MenuItemWithStock(BaseModel):
+    """Menu item enriched with stock data from inventory. Used in paginated list."""
     id: int
     name: str
     purchase_price: float
@@ -58,31 +100,32 @@ class MenuItemWithStock(BaseModel):
     available: str
 
 class MenuListResponse(BaseModel):
+    """Paginated list of menu items with stock info."""
     page: int
     limit: int
     total_items: int
     total_pages: int
     items: list[MenuItemWithStock]
 
-class MenuItemUpdate(BaseModel):
-    name: Optional[str]= None
-    purchase_price: Optional[float] = None
-    selling_price: Optional[float] = None
-# --------------------------
-# INVENTAIRE
-# --------------------------
-class InventoryCreate(BaseModel):
-    """Création d’un item dans l’inventaire."""
+# ------------------------------------------------------------------------------------
+# RESTOCK
+# ------------------------------------------------------------------------------------
+
+class RestockCreate(BaseModel):
+    """Restocking by player."""
     menu_item_id: int
     quantity: int
 
     @field_validator('quantity')
     @classmethod
     def quantity_must_be_positive(cls, v):
-        if v < 0:
-            raise ValueError('La quantité ne peut pas être négative')
+        if v <= 0:
+            raise ValueError('The quantity must be greater than 0.')
         return v
 
+# ------------------------------------------------------------------------------------
+# INVENTORY
+# ------------------------------------------------------------------------------------
 
 class InventoryItemOut(BaseModel):
     id: int
@@ -98,34 +141,10 @@ class InventoryItemPlayerOut(BaseModel):
 class InventoryOut(BaseModel):
     items: list[InventoryItemPlayerOut]
 
+# ------------------------------------------------------------------------------------
+# ORDERS
+# ------------------------------------------------------------------------------------
 
-class InventoryUpdate(BaseModel):
-    """Mise à jour de la quantité d’un item d’inventaire."""
-    quantity: int
-
-    @field_validator('quantity')
-    @classmethod
-    def quantity_must_be_positive(cls, v):
-        if v < 0:
-            raise ValueError('La quantité ne peut pas être négative')
-        return v
-# --------------------------
-# Restock
-# --------------------------
-class RestockCreate(BaseModel):
-    """Réapprovisionnement par le joueur."""
-    menu_item_id: int
-    quantity: int
-
-    @field_validator('quantity')
-    @classmethod
-    def quantity_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError('La quantité doit être supérieure à 0')
-        return v
-# --------------------------
-# COMMANDES
-# --------------------------
 class OrderStatusEnum(str, Enum):
     PENDING = "pending"
     COMPLETED = "completed"
@@ -146,32 +165,29 @@ class OrderedItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 class OrderCreatedOut(BaseModel):
-    """Réponse lors de la création de commande client"""
+    """Response when creating a sales order"""
     message: str
     order_id: int
     items: list[OrderedItemOut]
 
 class OrderStatusOut(BaseModel):
-    """Réponse lors de changement de statut de commande client"""
+    """Response when order status changes"""
     message: str
     order_id: int
 
 class OrderDetailOut(BaseModel):
-    """Réponse quand on veut le détail(=le contenu) d'une commande"""
+    """Response when we view the details (i.e., the contents) of an order"""
     status: OrderStatusEnum
     items: list[OrderedItemOut]
-
     model_config = {"from_attributes": True}
 
 class OrderSummaryOut(BaseModel):
-    """Lister les commandes."""
-
     id: int
     status: OrderStatusEnum
     created_at: datetime
 
 class PaginatedOrdersOut(BaseModel):
-    """Liste paginée de commandes."""
+    """Paginated list of commands."""
     page: int
     limit: int
     total_items: int
@@ -184,8 +200,7 @@ class OrderAdminSummaryOut(BaseModel):
     status: OrderStatusEnum
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class PaginatedAdminOrdersOut(BaseModel):
     page: int
@@ -194,47 +209,10 @@ class PaginatedAdminOrdersOut(BaseModel):
     total_pages: int
     items: list[OrderAdminSummaryOut]
 
-# --------------------------
-# AUTHENTIFICATION
-# --------------------------
-class UserSignup(BaseModel):
-    """Données pour créer un compte."""
-    username: str
-    password: str
-    money: float = 0.0
-    is_admin: bool = False
+# ------------------------------------------------------------------------------------
+# PLAYER HISTORY
+# ------------------------------------------------------------------------------------
 
-    @field_validator('username')
-    @classmethod
-    def username_not_empty(cls, v):
-        if not v or len(v) < 3:
-            raise ValueError('Username doit faire au moins 3 caractères')
-        return v
-
-    @field_validator('password')
-    @classmethod
-    def password_strong_enough(cls, v):
-        if len(v) < 6:
-            raise ValueError('Password doit faire au moins 6 caractères')
-        return v
-
-
-class UserResponse(BaseModel):
-    """Utilisateur retourné après signup/login (SANS password)."""
-    id: int
-    username: str
-    money: float
-    is_admin: bool
-    model_config = {"from_attributes": True}
-
-class UserLogin(BaseModel):
-    """Données pour se connecter."""
-    username: str
-    password: str
-
-# --------------------------
-# HISTORIQUE DU JOUEUR
-# --------------------------
 class GameLogOut(BaseModel):
     id: int
     action_type: str
@@ -243,14 +221,33 @@ class GameLogOut(BaseModel):
     timestamp: datetime
     model_config = {"from_attributes": True}
 
-# --------------------------
-# STATISTIQUES DU JOUEUR
-# --------------------------
-class PlayerProgressOut(BaseModel):
-    id: int
-    user_id: int
+class PlayerHistoryInfo(BaseModel):
+    username: str
+    money: float
+
+class GameHistoryOut(BaseModel):
+    player: PlayerHistoryInfo
+    total_actions: int
+    history: list[GameLogOut]
+
+# ------------------------------------------------------------------------------------
+# PLAYER STATISTICS
+# ------------------------------------------------------------------------------------
+
+class PlayerStatsInfo(BaseModel):
+    """Basic player information for stats."""
+    username: str
+    current_money: float
+    level: int
+
+class PlayerStatsDetails(BaseModel):
+    """Player's cumulative statistics."""
     total_money_earned: float
-    total_orders: int
-    current_level: int
     total_money_spent: float
-    model_config = {"from_attributes": True}
+    profit: float
+    total_orders: int
+
+class PlayerStatsOut(BaseModel):
+    """Complete player statistics."""
+    player: PlayerStatsInfo
+    stats: PlayerStatsDetails

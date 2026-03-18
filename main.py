@@ -1,8 +1,8 @@
 import math
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from logging import raiseExceptions
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,12 +10,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from schemas import (
-    UserCreate, UserOut, UserUpdate, TokenOut,
-    MenuItemCreate, MenuItemOut, MenuListResponse, MenuItemWithStock, MenuItemUpdate,
-    InventoryCreate, InventoryItemOut, InventoryItemPlayerOut, InventoryOut, InventoryUpdate,
-    OrderStatusEnum, OrderCreate, OrderedItemOut, RestockCreate, OrderCreatedOut, OrderStatusOut, OrderDetailOut, PaginatedOrdersOut, OrderSummaryOut, PaginatedAdminOrdersOut,
     UserSignup, UserResponse, UserLogin,
-    GameLogOut
+    UserOut, UserUpdate, TokenOut,
+    MenuItemCreate, MenuItemOut, MenuListResponse, MenuItemUpdate,
+    InventoryItemOut, InventoryItemPlayerOut, InventoryOut,
+    OrderStatusEnum, OrderCreate, RestockCreate, OrderCreatedOut, OrderStatusOut, OrderDetailOut, PaginatedOrdersOut, PaginatedAdminOrdersOut,
+    GameHistoryOut, PlayerHistoryInfo, PlayerStatsOut, PlayerStatsInfo, PlayerStatsDetails,
 )
 from database import Base, engine, get_db
 import models
@@ -219,7 +219,7 @@ def signup(
         username=user.username,
         password_hash=hashed,
         money=user.money,
-        is_admin = user.is_admin,
+        is_admin = False,
     )
 
     db.add(db_user)
@@ -252,8 +252,7 @@ def login(
     token = create_access_token(data={"user_id": user.id})
 
     return {
-        "access_token": token,
-        "token_type": "bearer"
+        "access_token": token
     }
 
 # ----------------------
@@ -726,6 +725,14 @@ def complete_order(
         )
         inventory.quantity -= item.quantity
 
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action_type="order_completed",
+        message=f"Total commande #{order.id} : +{total}€",
+        amount=total
+    )
+
     try:
         order.status = models.OrderStatus.COMPLETED
         current_user.money += total
@@ -850,7 +857,7 @@ def get_global_stats(
         }
     }
 
-@app.get("/game/history", tags=["Stats"])
+@app.get("/game/history", tags=["Stats"], response_model=GameHistoryOut)
 def get_game_history(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
@@ -860,20 +867,19 @@ def get_game_history(
     logs = db.query(models.GameLog).filter(
         models.GameLog.user_id == current_user.id
     ).order_by(
-        models.GameLog.timestamp.desc()  # Plus récent en premier
+        models.GameLog.timestamp.desc()
     ).all()
 
-    return {
-        "player": {
-            "username": current_user.username,
-            "money": current_user.money
-        },
-        "total_actions": len(logs),
-        "history": logs
-    }
+    return GameHistoryOut(
+        player=PlayerHistoryInfo(
+            username=current_user.username,
+            money=current_user.money
+        ),
+        total_actions=len(logs),
+        history=logs
+    )
 
-
-@app.get("/game/stats", tags=["Stats"])
+@app.get("/game/stats", tags=["Stats"], response_model=PlayerStatsOut)
 def get_game_stats(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
@@ -895,16 +901,17 @@ def get_game_stats(
     # Calculer le profit net
     profit = progress.total_money_earned - progress.total_money_spent
 
-    return {
-        "player": {
-            "username": current_user.username,
-            "current_money": current_user.money,
-            "level": progress.current_level
-        },
-        "stats": {
-            "total_money_earned": progress.total_money_earned,
-            "total_money_spent": progress.total_money_spent,
-            "profit": profit,
-            "total_orders": progress.total_orders
-        }
-    }
+    return PlayerStatsOut(
+        player=PlayerStatsInfo(
+            username=current_user.username,
+            current_money=current_user.money,
+            level=progress.current_level
+        ),
+        stats=PlayerStatsDetails(
+            total_money_earned=progress.total_money_earned,
+            total_money_spent=progress.total_money_spent,
+            profit=progress.total_money_earned - progress.total_money_spent,
+            total_orders=progress.total_orders
+        )
+    )
+
