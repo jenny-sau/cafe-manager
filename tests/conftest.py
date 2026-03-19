@@ -4,7 +4,10 @@ from sqlalchemy.orm import sessionmaker
 from database import Base
 from main import app
 from database import get_db
-from decimal import Decimal
+import os
+os.environ["TESTING"] = "true"
+
+
 
 # Créer une base de données en mémoire pour les tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -105,13 +108,17 @@ def second_user_token(client):
 
 #Token utilisateur ADMIN:
 @pytest.fixture
-def admin_token(client):
+def admin_token(client, db):
 
     client.post("/auth/signup", json={
         "username": "admin",
         "password": "secret",
-        "is_admin": True
+
     })
+    from models import User
+    user = db.query(User).filter(User.username == "admin").first()
+    user.is_admin = True
+    db.commit()
 
     login_response = client.post("/auth/login", json={
         "username": "admin",
