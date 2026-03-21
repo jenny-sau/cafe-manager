@@ -9,7 +9,7 @@ from enum import Enum as PyEnum
 
 
 # ----------------
-# UTILISATEUR
+# USER
 # ------------------------
 class User(Base):
     __tablename__ = "users"
@@ -41,7 +41,7 @@ class MenuItem(Base):
 
 
 # ----------------
-# Inventaire
+# INVENTORY
 # ------------------------
 class Inventory(Base):
     __tablename__ = "inventory"
@@ -50,13 +50,13 @@ class Inventory(Base):
     quantity = Column(Integer, default=0)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    # Relations
+    # Relationship
     user = relationship("User", back_populates="inventory_items")
     menu_item = relationship("MenuItem", back_populates="inventory_items")
 
 
 # ----------------
-# Commandes
+# ORDERS
 # ------------------------
 class OrderStatus(str, PyEnum):
     PENDING = "pending"
@@ -72,7 +72,7 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING,  nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relations
+    # Relationship
     user = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order")
 
@@ -88,7 +88,7 @@ class OrderItem(Base):
     menu_item = relationship("MenuItem")
 
 # ----------------
-# GameLog : Pour l'historique du joueur
+# GameLog : For the player's history
 # ------------------------
 class GameLog(Base):
     __tablename__ = "gamelog"
@@ -99,12 +99,12 @@ class GameLog(Base):
     amount = Column(Numeric(10, 2), nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relation
+    # Relationship
     user = relationship("User", back_populates="game_logs")
 
 
 # ----------------
-# PlayerProgress : Pour les stats cumulatives des joueurs
+# PlayerProgress : For players' cumulative statistics
 # ----------------------
 class PlayerProgress(Base):
     __tablename__ = "player_progress"
@@ -116,5 +116,5 @@ class PlayerProgress(Base):
     current_level = Column(Integer, default=1)
     total_money_spent = Column(Numeric(12, 2), server_default="0.00")
 
-    # Relation
+    # Relationship
     user = relationship("User", back_populates="player_progress")
