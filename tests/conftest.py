@@ -75,14 +75,14 @@ def user_token(client):
 
     client.post("/auth/signup", json={
         "username": "user",
-        "password": "secret",
+        "password": "Secret1",
         "money": "1000",
         "is_admin": False
     })
 
     login_response = client.post("/auth/login", json={
         "username": "user",
-        "password": "secret"
+        "password": "Secret1"
     })
 
     token = login_response.json()["access_token"]
@@ -93,14 +93,14 @@ def user_token(client):
 def second_user_token(client):
     client.post("/auth/signup", json={
         "username": "user2",
-        "password": "secret",
+        "password": "Secret1",
         "money": "1000",
         "is_admin": False
     })
 
     login = client.post("/auth/login", json={
         "username": "user2",
-        "password": "secret"
+        "password": "Secret1"
     })
 
     return login.json()["access_token"]
@@ -112,7 +112,7 @@ def admin_token(client, db):
 
     client.post("/auth/signup", json={
         "username": "admin",
-        "password": "secret",
+        "password": "Secret1",
 
     })
     from models import User
@@ -122,7 +122,7 @@ def admin_token(client, db):
 
     login_response = client.post("/auth/login", json={
         "username": "admin",
-        "password": "secret"
+        "password": "Secret1"
     })
     token = login_response.json()["access_token"]
 
@@ -150,7 +150,7 @@ def user_id(client, admin_token):
     # Signup
     client.post("/auth/signup", json={
         "username": "jenny",
-        "password": "secret",
+        "password": "Secret1",
         "is_admin": False
     })
 

@@ -20,5 +20,6 @@ __pycache__/
 .env
 .env.*
 
+.idea/
 
 *.db

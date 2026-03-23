@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field, model_validator
 from datetime import datetime
 from typing import Optional
 from enum import Enum
@@ -9,24 +9,25 @@ from enum import Enum
 
 class UserSignup(BaseModel):
     """Information needed to create an account."""
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=20)
+    password: str = Field(..., min_length=6)
     money: float = 0.0
 
-    @field_validator('username')
+    @field_validator("username")
     @classmethod
-    def username_not_empty(cls, v):
-        if not v or len(v) < 3:
-            raise ValueError('The username must be at least 3 characters long')
+    def username_valid(cls, v):
+        if v.strip() == "":
+            raise ValueError("Username cannot be empty or spaces")
         return v
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
-    def password_strong_enough(cls, v):
-        if len(v) < 6:
-            raise ValueError('The password must be at least 6 characters long')
+    def password_strong(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain an uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain a number")
         return v
-
 
 class UserResponse(BaseModel):
     """User returned  after signup/login (WITHOUT a password)."""
@@ -38,8 +39,8 @@ class UserResponse(BaseModel):
 
 class UserLogin(BaseModel):
     """Login credentials."""
-    username: str
-    password: str
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
 
 # ------------------------------------------------------------------------------------
 # USER
@@ -54,8 +55,8 @@ class UserOut(BaseModel):
 
 class UserUpdate(BaseModel):
     """Fields allowed when updating a user. All fields are optional."""
-    username: Optional[str] = None
-    money: Optional[float] = None
+    username: Optional[str] = Field(None, min_length=3, max_length=20)
+    money: Optional[float] = Field(None, ge=0)
 
 class TokenOut(BaseModel):
     """JWT token returned after a successful login."""
@@ -67,16 +68,15 @@ class TokenOut(BaseModel):
 # ------------------------------------------------------------------------------------
 
 class MenuItemCreate(BaseModel):
-    name: str
-    purchase_price: float
-    selling_price: float
+    name: str = Field(..., min_length=1, max_length=50)
+    purchase_price: float = Field(..., gt=0)
+    selling_price: float = Field(..., gt=0)
 
-    @field_validator('purchase_price', 'selling_price')
-    @classmethod
-    def price_must_be_positive(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError('Le prix doit être supérieur à 0')
-        return v
+    @model_validator(mode="after")
+    def check_prices(self):
+        if self.selling_price < self.purchase_price:
+            raise ValueError("Selling price must be greater than purchase price")
+        return self
 
 class MenuItemOut(BaseModel):
     id: int
@@ -86,9 +86,9 @@ class MenuItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 class MenuItemUpdate(BaseModel):
-    name: Optional[str]= None
-    purchase_price: Optional[float] = None
-    selling_price: Optional[float] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    purchase_price: Optional[float] = Field(None, gt=0)
+    selling_price: Optional[float] = Field(None, gt=0)
 
 class MenuItemWithStock(BaseModel):
     """Menu item enriched with stock data from inventory. Used in paginated list."""
@@ -114,14 +114,7 @@ class MenuListResponse(BaseModel):
 class RestockCreate(BaseModel):
     """Restocking by player."""
     menu_item_id: int
-    quantity: int
-
-    @field_validator('quantity')
-    @classmethod
-    def quantity_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError('The quantity must be greater than 0.')
-        return v
+    quantity: int = Field(..., gt=0)
 
 # ------------------------------------------------------------------------------------
 # INVENTORY
@@ -152,7 +145,7 @@ class OrderStatusEnum(str, Enum):
 
 class OrderItemCreate(BaseModel):
     menu_item_id: int
-    quantity: int
+    quantity: int = Field(..., gt=0)
 
 class OrderCreate(BaseModel):
     items: list[OrderItemCreate]

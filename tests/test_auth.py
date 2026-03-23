@@ -3,7 +3,7 @@ def test_signup_ok(client):
         "/auth/signup",
         json = {
             "username": "alice",
-            "password":"secret"
+            "password":"Secret1"
         }
     )
     assert response.status_code == 201
@@ -15,14 +15,14 @@ def test_signup_username_already_taken(client):
         "/auth/signup",
         json={
             "username": "Lola",
-            "password": "secret"
+            "password": "Secret1"
         }
     )
     signup_response = client.post(
         "/auth/signup",
         json={
             "username": "Lola",
-            "password": "secret"
+            "password": "Secret1"
         }
     )
     assert signup_response.status_code == 400
@@ -34,7 +34,7 @@ def test_login_ok(client):
         "/auth/signup",
         json={
             "username": "George",
-            "password": "secret"
+            "password": "Secret1"
         }
     )
     assert signup_response.status_code == 201
@@ -43,7 +43,7 @@ def test_login_ok(client):
         "/auth/login",
         json = {
             "username": "George",
-            "password": "secret"
+            "password": "Secret1"
         }
     )
     assert login_response.status_code==200
@@ -56,7 +56,7 @@ def test_wrong_password(client):
         "/auth/signup",
         json={
             "username": "Camille",
-            "password": "secret"
+            "password": "Secret1"
         }
     )
     assert signup_response.status_code == 201
@@ -65,7 +65,7 @@ def test_wrong_password(client):
         "/auth/login",
         json = {
             "username": "Camille",
-            "password": "123456"
+            "password": "Secret2"
         }
     )
     assert login_response.status_code==401
@@ -77,7 +77,7 @@ def test_user_does_not_exist(client):
         "/auth/signup",
         json={
             "username":"Louis",
-            "password":"secret"
+            "password":"Secret1"
         }
     )
     assert signup_response.status_code == 201
@@ -87,7 +87,7 @@ def test_user_does_not_exist(client):
         "/auth/login",
         json = {
             "username":"Bob",
-            "password":"secret"
+            "password":"Secret1"
         }
     )
     assert login_response.status_code==401
