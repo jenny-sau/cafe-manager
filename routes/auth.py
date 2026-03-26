@@ -27,7 +27,7 @@ def signup(
     ).first()
 
     if existing_user:
-        raise HTTPException(status_code=409, detail="Username already taken")
+        raise HTTPException(status_code=400, detail="Username already taken")
 
     hashed = hash_password(user.password)
 

@@ -26,7 +26,7 @@ def test_signup_username_already_taken(client):
         }
     )
     assert signup_response.status_code == 400
-    assert signup_response.json()["detail"] =="Username déjà pris"
+    assert signup_response.json()["detail"] =="Username already taken"
 
 
 def test_login_ok(client):

@@ -1,138 +1,138 @@
-🇫🇷 Français | [🇬🇧 English](README_EN.md)
-
 # Café Manager API
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
 
-Une API REST backend pour un jeu de gestion de café, avec logique métier complète : approvisionnement, stock, commandes clients et progression du joueur.
+A REST API backend for a café management game, with complete business logic: restocking, inventory, customer orders, and player progression.
 
-**Stack technique :** FastAPI · PostgreSQL · SQLAlchemy · JWT · Docker · Pytest
+**Tech Stack:** FastAPI · PostgreSQL · SQLAlchemy · JWT · Docker · Pytest
 
 ---
 
-## Table des matières
+## Table of Contents
 
-- [Aperçu](#aperçu)
-- [Fonctionnalités](#fonctionnalités)
+- [Overview](#overview)
+- [Features](#features)
 - [Installation](#installation)
-- [Démarrage rapide](#démarrage-rapide)
-- [Comment ça marche](#comment-ça-marche)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
 - [Architecture](#architecture)
-- [Compétences développées](#compétences-développées)
+- [Skills Developed](#skills-developed)
 - [Tests](#tests)
+- [Future Improvements](#future-improvements)
+- [What I Learned](#what-i-learned)
 - [Configuration](#configuration)
 
 ---
 
-## Aperçu
+## Overview
 
-Café Manager est un jeu de gestion où le joueur démarre avec un budget, achète des produits, sert des clients et fait évoluer son café.
+Café Manager is a management game where the player starts with a budget, buys products, serves customers, and grows their café.
 
-**Exemple de partie :**
+**Example gameplay:**
 ```
-Budget initial : 100€
+Starting budget: 100€
   ↓
-Achat de 20 cafés (30€) → Stock : 20 cafés, Argent : 70€
+Buy 20 coffees (30€) → Stock: 20 coffees, Money: 70€
   ↓
-Client commande 3 cafés → Stock : 17 cafés, Argent : 79€
+Customer orders 3 coffees → Stock: 17 coffees, Money: 79€
   ↓
-Niveau augmente, nouveaux produits débloqués 
+Level up, new products unlocked 
 ```
 
-### Swagger UI structuré
+### Structured Swagger UI
 ![Swagger overview](screenshots/swagger-overview.png)
 
-### Exemple flux de travail métier
+### Business Workflow Example
 ![Order workflow](screenshots/swagger-order-example.png)
 
-### Pourquoi ce projet ?
+### Why This Project?
 
-Projet d'apprentissage personnel pour maîtriser le développement backend :
-- Construire une API REST complète depuis le début
-- Implémenter une logique métier (transactions, validations, états)
-- Comprendre l'architecture d'une application moderne (auth, DB, tests)
+Personal learning project to master backend development:
+- Build a complete REST API from scratch
+- Implement business logic (transactions, validations, states)
+- Understand modern application architecture (auth, DB, tests)
 
 ---
 
-## Fonctionnalités
+## Features
 
-### Pour les joueurs
-- **Authentification** : Inscription, connexion, JWT (24h)
-- **Réapprovisionnement** : Acheter des produits pour son stock
-- **Inventaire** : Consulter son stock 
-- **Commandes clients** : Servir ou annuler les demandes
-- **Statistiques** : Suivre ses bénéfices, niveau, historique
+### For Players
+- **Authentication**: Sign up, login, JWT (24h)
+- **Restocking**: Buy products for inventory
+- **Inventory**: Check current stock 
+- **Customer Orders**: Serve or cancel requests
+- **Statistics**: Track profits, level, history
 
-### Pour les admins
-- **Gestion du menu** : Ajouter/modifier/supprimer des produits
-- **Gestion des utilisateurs** : CRUD complet
-- **Stats globales** : Vue d'ensemble du jeu
+### For Admins
+- **Menu Management**: Add/modify/delete products
+- **User Management**: Full CRUD
+- **Global Stats**: Game overview
 
 ---
 
 ## Installation
 
-### Prérequis
+### Prerequisites
 - Python 3.11+
 - Docker & Docker Compose
 
-### Étapes
+### Steps
 ```bash
-# 1. Cloner le projet
+# 1. Clone the project
 git clone https://github.com/jenny-sau/cafe-manager.git
 cd cafe-manager
 
-# 2. Créer l'environnement virtuel
+# 2. Create virtual environment
 python -m venv venv
 
-# Activer l'environnement
+# Activate environment
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 
-# 3. Installer les dépendances
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Lancer PostgreSQL (Docker)
+# 4. Launch PostgreSQL (Docker)
 docker compose up -d
 
-# 5. Lancer l'API
+# 5. Launch API
 uvicorn main:app --reload
 ```
 
-**API disponible sur :** http://127.0.0.1:8000  
-**Documentation interactive :** http://127.0.0.1:8000/docs
+**API available at:** http://127.0.0.1:8000  
+**Interactive documentation:** http://127.0.0.1:8000/docs
 
 ---
 
-## Démarrage rapide
+## Quick Start
 
-### 1. Créer un compte
+### 1. Create an Account
 ```bash
 POST /auth/signup
 ```
 ```json
 {
   "username": "maria",
-  "password": "secret123",
-  "money": 100.0,
-  "is_admin": true
+  "password": "Secret123",
+  "money": 100.0
 }
 ```
 
-### 2. Se connecter
+### 2. Login
 ```bash
 POST /auth/login
 ```
 ```json
 {
   "username": "maria",
-  "password": "secret123"
+  "password": "Secret123"
 }
 ```
 
-**Réponse :**
+
+**Response:**
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -140,245 +140,294 @@ POST /auth/login
 }
 ```
 
-### 3. Utiliser le token
+### 3. Use the Token
 
-Dans Swagger UI (http://127.0.0.1:8000/docs) :
-1. Cliquer sur le bouton **"Authorize"** 
-2. Coller le token récupéré
-3. Tous les endpoints protégés sont maintenant accessibles !
+In Swagger UI (http://127.0.0.1:8000/docs):
+1. Click the **"Authorize"** button
+2. Paste the token
+3. All protected endpoints are now accessible!
 
-### 4. Tester un workflow complet
+### 4. Test a Complete Workflow
 ```bash
-# Voir le menu
+# View menu
 GET /menu
 
-# Acheter 10 cafés
+# Buy 10 coffees
 POST /order/restock
 {
   "item_id": 1,
   "quantity": 10
 }
 
-# Vérifier son inventaire
+# Check inventory
 GET /inventory
 
-# Une commande client arrive
+# Customer order arrives
 POST /order/client
 {
   "item_id": 1,
   "quantity": 2
 }
 
-# Servir le client
+# Serve the customer
 PATCH /order/{order_id}/complete
 ```
+> Admin endpoints require a manually promoted admin user (see Admin System section).
 
 ---
+## Admin System
+### Default Behavior
 
-## Comment ça marche
+All users are created as **non-admin by default**.
 
-### Workflow : Réapprovisionnement
+Admin privileges are **not exposed in the public API** during signup.
+
+### Promoting a User to Admin
+
+To make a user admin, you need to update the database manually.
+
+```sql
+UPDATE "User"
+SET is_admin = true
+WHERE username = 'maria';
 ```
-Joueur veut acheter 10 cafés à 1.50€/unité
+
+### Why This Design?
+
+This choice was made to better reflect real-world backend practices:
+
+- Prevent privilege escalation via public endpoints
+- Separate authentication from role management
+- Keep admin control restricted and explicit
+
+In a production environment, this would typically be handled via an internal interface or a role-based access control (RBAC) system.
+
+### Dev Note
+
+For testing purposes, it is possible to temporarily allow admin creation in the signup route.
+
+This is intentionally not enabled by default.
+
+
+## How It Works
+
+### Workflow: Restocking
+```
+Player wants to buy 10 coffees at 1.50€/unit
           ↓
-API vérifie : a-t-il 15€ ?
+API checks: does player have 15€?
           ↓
-    OUI                 NON
+    YES                 NO
      ↓                   ↓
-Stock +10          Erreur 400
-Argent -15€        "Fonds insuffisants"
-Action loggée
+Stock +10          Error 400
+Money -15€         "Insufficient funds"
+Action logged
 ```
 
-### Workflow : Commande client
+### Workflow: Customer Order
 ```
-Client commande 2 cafés (prix vente : 3€/unité)
+Customer orders 2 coffees (selling price: 3€/unit)
           ↓
-Commande créée (status: PENDING)
+Order created (status: PENDING)
           ↓
-Joueur clique "Servir"
+Player clicks "Serve"
           ↓
-API vérifie : 2 cafés en stock ?
+API checks: 2 coffees in stock?
           ↓
-    OUI                 NON
+    YES                 NO
      ↓                   ↓
-Stock -2           Erreur 400
-Argent +6€         "Stock insuffisant"
+Stock -2           Error 400
+Money +6€          "Insufficient stock"
 Status: COMPLETED
 ```
 
-### Cycle de vie des commandes
+### Order Lifecycle
 
-Les commandes suivent un système de validation de statuts :
+Orders follow a status validation system:
 ```
-PENDING → COMPLETED  (stock décrémenté, argent crédité)
+PENDING → COMPLETED  (stock decremented, money credited)
    ↓
-CANCELLED (aucun effet sur stock/argent)
+CANCELLED (no effect on stock/money)
 ```
 
-**Transitions interdites :**
+**Forbidden transitions:**
 - `COMPLETED → PENDING`
 - `CANCELLED → COMPLETED`
 
-Ces transitions sont validées via des guards (`if status != PENDING`) dans les endpoints.
+These transitions are validated via guards (`if status != PENDING`) in the endpoints.
 
 ---
 
 ## Architecture
 
-### Models (Base de données)
+### Models (Database)
 
 | Table | Description                                        |
 |-------|----------------------------------------------------|
-| **User** | Joueurs et administrateurs                         |
-| **MenuItem** | Produits au menu (café, croissant...)              |
-| **Inventory** | Stock actuel de chaque joueur                      |
-| **Order** | Commandes avec statut (pending/completed/cancelled) |
-| **GameLog** | Historique complet des actions                     |
-| **PlayerProgress** | Niveau et statistiques des joueurs                 |
+| **User** | Players and administrators                         |
+| **MenuItem** | Menu products (coffee, croissant...)              |
+| **Inventory** | Current stock for each player                      |
+| **Order** | Orders with status (pending/completed/cancelled) |
+| **GameLog** | Complete action history                     |
+| **PlayerProgress** | Level and player statistics                 |
 
-### Endpoints principaux
+### Main Endpoints
 
-#### Authentification (publique)
+#### Authentication (public)
 ```
-POST   /auth/signup    Créer un compte
-POST   /auth/login     Se connecter (JWT)
+POST   /auth/signup    Create account
+POST   /auth/login     Login (JWT)
 ```
 
 #### Menu
 ```
-GET    /menu           Lister les produits
-POST   /menu           Ajouter un produit (admin)
-PUT    /menu/{id}      Modifier un produit (admin)
-DELETE /menu/{id}      Supprimer un produit (admin)
+GET    /menu           List products
+POST   /menu           Add product (admin)
+PUT    /menu/{id}      Modify product (admin)
+DELETE /menu/{id}      Delete product (admin)
 ```
 
-#### Inventaire & Commandes (authentifié)
+#### Inventory & Orders (authenticated)
 ```
-POST   /order/restock         Acheter du stock
-GET    /inventory             Consulter son inventaire
-POST   /order/client          Nouvelle commande client
-PATCH  /order/{id}/complete   Servir le client
-PATCH  /order/{id}/cancel     Annuler la commande
+POST   /order/restock         Buy stock
+GET    /inventory             Check inventory
+POST   /order/client          New customer order
+PATCH  /order/{id}/complete   Serve customer
+PATCH  /order/{id}/cancel     Cancel order
 ```
 
-#### Statistiques
+#### Statistics
 ```
-GET    /game/history    Historique personnel
-GET    /game/stats      Statistiques personnelles
-GET    /admin/stats     Stats globales (admin)
+GET    /game/history    Personal history
+GET    /game/stats      Personal statistics
+GET    /admin/stats     Global stats (admin)
 ```
 
 ---
 
-## Compétences développées
+## Skills Developed
 
 ### Backend & API
-- Architecture REST avec **FastAPI** (routes, dépendances, validation automatique)
-- Injection de dépendances pour l'authentification
-- Documentation auto-générée (OpenAPI/Swagger)
-- Validation des données avec **Pydantic**
+- REST architecture with **FastAPI** (routes, dependencies, automatic validation)
+- Dependency injection for authentication
+- Auto-generated documentation (OpenAPI/Swagger)
+- Data validation with **Pydantic**
 
-### Base de données
-- Modélisation relationnelle avec **SQLAlchemy** (relations One-to-Many, Foreign Keys)
-- Migrations de schéma avec **Alembic**
-- Gestion des erreurs avec try/except et rollback
+### Database
+- Relational modeling with **SQLAlchemy** (One-to-Many relations, Foreign Keys)
+- Schema migrations with **Alembic**
+- Error handling with try/except and rollback
 
-### Sécurité
-- Authentification **JWT** avec expiration (24h)
-- Hash des mots de passe avec **bcrypt**
-- Gestion des rôles (admin vs joueur)
-- Rate limiting avec **slowapi** (protection anti-spam)
+### Security
+- **JWT** authentication with expiration (24h)
+- Password hashing with **bcrypt**
+- Role management (admin vs player)
+- Rate limiting with **slowapi** (anti-spam protection)
 
-### Logique métier
-- Validation des transitions de statuts (PENDING → COMPLETED/CANCELLED)
-- Validations métier (stock suffisant, fonds disponibles)
-- Calculs automatiques (bénéfices, coûts)
-- Système de logs pour historique des actions
+### Business Logic
+- Status transition validation (PENDING → COMPLETED/CANCELLED)
+- Business validations (sufficient stock, available funds)
+- Automatic calculations (profits, costs)
+- Logging system for action history
 
 ### DevOps & Tests
-- Conteneurisation avec **Docker** (PostgreSQL)
-- Tests automatisés avec **pytest** (auth, permissions, logique)
-- Gestion de deux environnements (dev:5432, test:5433)
+- Containerization with **Docker** (PostgreSQL)
+- Automated tests with **pytest** (auth, permissions, logic)
+- Managing two environments (dev:5432, test:5433)
 
 ---
 
 ## Tests
 
-Tests automatisés avec **pytest** couvrant :
+Automated tests with **pytest** covering:
 
-### Authentification
-- Inscription (signup) et validation des données
-- Gestion des doublons (username déjà pris)
-- Connexion (login) et génération du JWT
-- Cas d'erreur : identifiants invalides, token manquant/expiré
+### Authentication
+- Sign up and data validation
+- Handling duplicates (username already taken)
+- Login and JWT generation
+- Error cases: invalid credentials, missing/expired token
 
 ### Permissions
-- Accès autorisé pour utilisateurs authentifiés
-- Blocage des utilisateurs non authentifiés (401)
-- Restriction des routes admin (403 pour les joueurs)
+- Access for authenticated users
+- Blocking unauthenticated users (401)
+- Admin route restrictions (403 for players)
 
-### Logique métier
-- Réapprovisionnement (vérification du solde)
-- Gestion de l'inventaire (incréments/décréments)
-- Commandes clients (workflow complet PENDING → COMPLETED)
-- Cas d'erreur : stock insuffisant, fonds insuffisants
+### Business Logic
+- Restocking (balance verification)
+- Inventory management (increments/decrements)
+- Customer orders (complete PENDING → COMPLETED workflow)
+- Error cases: insufficient stock, insufficient funds
 
-**Couverture actuelle :**
-- Tests unitaires (happy path)
-- Tests d'erreur (edge cases)
+**Current Coverage:**
+- Unit tests (happy path)
+- Error tests (edge cases)
 
 ```bash
-# Lancer les tests
+# Run tests
 pytest
 
-# Avec couverture
+# With coverage
 pytest --cov=app tests/
 ```
 
 ---
 
+## Future Improvements
 
-## Améliorations futures
+### Planned Technical Improvements
 
-### Améliorations techniques prévues
-
-- Mise en place d’un logging structuré (niveau INFO/WARNING/ERROR)
-- Factorisation du code pour réduire les répétitions
-- Ajout de tests couvrant des cas extrêmes et scénarios limites
-- Amélioration de la maintenabilité globale
+- Implementation of structured logging (INFO/WARNING/ERROR levels)
+- Code refactoring to reduce repetition
+- Additional tests covering extreme cases and edge scenarios
+- Overall maintainability improvements
 
 ---
 
+## What I Learned
+
+Beyond the code, this project helped me understand:
+
+**Technical Concepts:**
+- How to structure a REST API with multiple user types (admin/player)
+- The importance of proper error handling to avoid database inconsistencies
+- Thinking about what happens when multiple users use the API simultaneously
+- How to write tests that verify not only that things work, but also that they fail correctly
+
+**General Skills:**
+- Reading technical documentation (FastAPI, SQLAlchemy, pytest)
+- Analyzing my own code to identify its limitations
+- Being honest about what I master vs. what I still need to learn
+
+---
 
 ## Configuration
 
-### Ports utilisés
+### Used Ports
 
 | Service | Port | Description |
 |---------|------|-------------|
-| PostgreSQL (dev) | 5432 | Base de données principale |
-| PostgreSQL (test) | 5433 | Base de données pour pytest |
+| PostgreSQL (dev) | 5432 | Main database |
+| PostgreSQL (test) | 5433 | Database for pytest |
 | FastAPI | 8000 | API |
 
-**Important :** Aucun PostgreSQL ne doit tourner nativement sur Windows. Tout est géré via Docker.
+**Important:** No PostgreSQL should run natively on Windows. Everything is managed via Docker.
 
-### Sécurité
+### Security
 
-**Note de sécurité :** La `SECRET_KEY` dans `auth.py` est actuellement écrite en dur pour le développement.
+**Security Note:** The `SECRET_KEY` in `auth.py` is currently hardcoded for development.
 
-**En production, utiliser des variables d'environnement :**
+**In production, use environment variables:**
 ```bash
-# Méthode 1 : Export direct
-export SECRET_KEY="votre-clé-ultra-sécurisée-de-32-caractères"
+# Method 1: Direct export
+export SECRET_KEY="your-ultra-secure-32-character-key"
 
-# Méthode 2 : Fichier .env
+# Method 2: .env file
 # .env
-SECRET_KEY=votre-clé-ultra-sécurisée
+SECRET_KEY=your-ultra-secure-key
 DATABASE_URL=postgresql://user:pass@host/db
 ```
 
-Puis charger avec `python-dotenv` :
+Then load with `python-dotenv`:
 ```python
 from dotenv import load_dotenv
 load_dotenv()
@@ -386,16 +435,4 @@ load_dotenv()
 
 ---
 
-## Ce que j'ai appris
-
-Au-delà du code, ce projet m'a permis de comprendre :
-
-### Concepts techniques
-- Différence entre `def` et `async def` (et quand les utiliser)
-- Importance des transactions atomiques en DB
-- Problèmes de concurrence (race conditions)
-- Pourquoi les FSM sont importantes pour les workflows complexes
----
-
-**Questions ?** N'hésite pas à ouvrir une issue ou à me contacter: jenny.saucy@outlook.com :)
-
+**Questions?** Feel free to open an issue or contact me: jenny.saucy@outlook.com :)

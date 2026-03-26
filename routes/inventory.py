@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import get_current_admin, get_current_user
@@ -10,7 +10,12 @@ router = APIRouter()
 # ----------------------
 # CRUD INVENTORY
 # ----------------------
-@router.get("/inventory", tags=["Inventory"], response_model=InventoryOut)
+@router.get(
+    "/inventory",
+    tags=["Inventory"],
+    response_model=InventoryOut,
+    status_code=status.HTTP_200_OK
+)
 def list_inventory(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -34,7 +39,12 @@ def list_inventory(
     return InventoryOut(items=items)
 
 
-@router.get("/inventory/{item_id}", tags=["Inventory"], response_model=InventoryItemOut)
+@router.get(
+    "/inventory/{item_id}",
+    tags=["Inventory"],
+    response_model=InventoryItemOut,
+    status_code=status.HTTP_200_OK
+)
 def read_inventory(item_id: int,
                    db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)
@@ -48,7 +58,11 @@ def read_inventory(item_id: int,
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
-@router.delete("/inventory/{item_id}", tags=["Inventory"])
+@router.delete(
+    "/inventory/{item_id}",
+    tags=["Inventory"],
+    status_code=status.HTTP_200_OK
+)
 def admin_delete_inventory(
         item_id: int,
         db: Session = Depends(get_db),
