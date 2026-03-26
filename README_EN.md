@@ -117,9 +117,8 @@ POST /auth/signup
 ```json
 {
   "username": "maria",
-  "password": "secret123",
-  "money": 100.0,
-  "is_admin": true
+  "password": "Secret123",
+  "money": 100.0
 }
 ```
 
@@ -130,9 +129,10 @@ POST /auth/login
 ```json
 {
   "username": "maria",
-  "password": "secret123"
+  "password": "Secret123"
 }
 ```
+
 
 **Response:**
 ```json
@@ -174,8 +174,42 @@ POST /order/client
 # Serve the customer
 PATCH /order/{order_id}/complete
 ```
+> Admin endpoints require a manually promoted admin user (see Admin System section).
 
 ---
+## Admin System
+### Default Behavior
+
+All users are created as **non-admin by default**.
+
+Admin privileges are **not exposed in the public API** during signup.
+
+### Promoting a User to Admin
+
+To make a user admin, you need to update the database manually.
+
+```sql
+UPDATE "User"
+SET is_admin = true
+WHERE username = 'maria';
+```
+
+### Why This Design?
+
+This choice was made to better reflect real-world backend practices:
+
+- Prevent privilege escalation via public endpoints
+- Separate authentication from role management
+- Keep admin control restricted and explicit
+
+In a production environment, this would typically be handled via an internal interface or a role-based access control (RBAC) system.
+
+### Dev Note
+
+For testing purposes, it is possible to temporarily allow admin creation in the signup route.
+
+This is intentionally not enabled by default.
+
 
 ## How It Works
 

@@ -4,7 +4,6 @@ from database import get_db
 import models
 from auth import hash_password, verify_password, create_access_token
 from schemas import UserSignup, UserResponse, UserLogin, TokenOut
-
 import os
 from limiter import limiter
 
@@ -17,7 +16,7 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED
 )
-@limiter.limit("5/minute" if os.getenv("TESTING") != "true" else "1000/minute") # Maximum 5 signups par minute
+@limiter.limit("5/minute" if os.getenv("TESTING") != "true" else "1000/minute") # Maximum 5 signups / minute
 def signup(
         request: Request,
         user: UserSignup, db: Session = Depends(get_db)
@@ -28,7 +27,7 @@ def signup(
     ).first()
 
     if existing_user:
-        raise HTTPException(status_code=400, detail="Username déjà pris")
+        raise HTTPException(status_code=409, detail="Username already taken")
 
     hashed = hash_password(user.password)
 

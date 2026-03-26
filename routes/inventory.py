@@ -22,16 +22,14 @@ def list_inventory(
         .all()
     )
 
-    items = []
-
-    for inv in inventory_items:
-        items.append(
-            InventoryItemPlayerOut(
-                menu_item_id=inv.menu_item_id,
-                product_name=inv.menu_item.name,
-                quantity=inv.quantity
-            )
+    items = [
+        InventoryItemPlayerOut(
+            menu_item_id=inv.menu_item_id,
+            product_name=inv.menu_item.name,
+            quantity=inv.quantity
         )
+        for inv in inventory_items
+    ]
 
     return InventoryOut(items=items)
 
