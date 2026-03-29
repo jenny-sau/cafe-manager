@@ -174,17 +174,26 @@ PATCH /order/{order_id}/complete
 ```
 > Admin endpoints require a manually promoted admin user (see Admin System section).
 
-### 5. Test Admin Account
+### 5. Create an Admin Account
 
-A default admin account is available for testing all features:
+To test admin features, create an account and promote it manually:
 
-| Field    | Value      |
-|----------|------------|
-| Username | `Admin`    |
-| Password | `Admin123` |
+**Step 1 — Create the account via the API:**
+```json
+POST /auth/signup
+{
+  "username": "Admin",
+  "password": "Admin123",
+  "money": 100.0
+}
+```
 
-> **Note:** This account is for testing purposes only. 
-> In production, admin privileges should be managed directly in the database.
+**Step 2 — Connect to the database and run:**
+```sql
+UPDATE users SET is_admin = true WHERE username = 'Admin';
+```
+
+You can now login with `Admin` / `Admin123` and access all admin endpoints.
 
 ---
 ## Admin System
