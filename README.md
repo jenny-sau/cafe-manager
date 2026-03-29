@@ -174,6 +174,18 @@ PATCH /order/{order_id}/complete
 ```
 > Admin endpoints require a manually promoted admin user (see Admin System section).
 
+### 5. Test Admin Account
+
+A default admin account is available for testing all features:
+
+| Field    | Value      |
+|----------|------------|
+| Username | `Admin`    |
+| Password | `Admin123` |
+
+> **Note:** This account is for testing purposes only. 
+> In production, admin privileges should be managed directly in the database.
+
 ---
 ## Admin System
 ### Default Behavior
@@ -187,7 +199,7 @@ Admin privileges are **not exposed in the public API** during signup.
 To make a user admin, you need to update the database manually.
 
 ```sql
-UPDATE "User"
+UPDATE users
 SET is_admin = true
 WHERE username = 'maria';
 ```
@@ -424,7 +436,6 @@ DATABASE_URL=postgresql://user:pass@host/db
 ```
 
 Never commit your `.env` file — it is listed in `.gitignore`.
-''''
----
 
-**Questions?** Feel free to open an issue or contact me: jenny.saucy@outlook.com :)
+
+Questions? Feel free to open an issue or contact me: jenny.saucy@outlook.com :)
