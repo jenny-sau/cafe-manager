@@ -10,9 +10,11 @@ router = APIRouter()
 # ----------------------
 # CRUD MENU
 # ----------------------
-@router.post("/menu", tags=["Menu"],
-          response_model=MenuItemOut,
-          status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/menu", tags=["Menu"],
+    response_model=MenuItemOut,
+    status_code=status.HTTP_201_CREATED
+)
 def create_menu_item(
         item: MenuItemCreate,
         db: Session = Depends(get_db),
@@ -29,7 +31,11 @@ def create_menu_item(
     return db_menu_item
 
 
-@router.get("/menu/{menu_id}", tags=["Menu"], response_model=MenuItemOut)
+@router.get(
+    "/menu/{menu_id}",
+    tags=["Menu"], response_model=MenuItemOut,
+    status_code=status.HTTP_200_OK
+)
 def read_menu_item(
         menu_id: int,
         db: Session = Depends(get_db),
@@ -41,7 +47,11 @@ def read_menu_item(
         raise HTTPException(status_code=404, detail="Menu item not found")
     return menu_item
 
-@router.get("/menu", tags=["Menu"], response_model=MenuListResponse)
+@router.get(
+    "/menu", tags=["Menu"],
+    response_model=MenuListResponse,
+    status_code=status.HTTP_200_OK
+)
 def list_menu(
         page: int = 1,
         limit: int = 20,
@@ -80,7 +90,9 @@ def list_menu(
         "items": menu_with_stock
     }
 
-@router.put("/menu/{menu_id}", tags=["Menu"], response_model=MenuItemOut)
+@router.put(
+    "/menu/{menu_id}",
+    tags=["Menu"], response_model=MenuItemOut)
 def update_menu_item(
         menu_id: int,
         menu_item: MenuItemUpdate,
@@ -103,7 +115,11 @@ def update_menu_item(
     return db_menu_item
 
 
-@router.delete("/menu/{menu_id}", tags=["Menu"])
+@router.delete(
+    "/menu/{menu_id}",
+    tags=["Menu"],
+    status_code=status.HTTP_200_OK
+)
 def delete_menu_item(
         menu_id: int,
         db: Session = Depends(get_db),

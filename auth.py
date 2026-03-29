@@ -2,8 +2,12 @@ import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
+import os
+
 # Configuration JWT
-SECRET_KEY = "votre-cle-secrete-ultra-secure-changez-moi"  # À changer en production
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 

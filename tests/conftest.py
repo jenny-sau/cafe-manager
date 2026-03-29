@@ -1,12 +1,13 @@
-import pytest
+import os
+os.environ["SECRET_KEY"] = "test-secret-key"
+
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from database import Base
 from main import app
 from database import get_db
-import os
-os.environ["TESTING"] = "true"
-
+import pytest
 
 
 # Créer une base de données en mémoire pour les tests
