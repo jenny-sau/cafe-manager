@@ -414,25 +414,17 @@ Beyond the code, this project helped me understand:
 
 ### Security
 
-**Security Note:** The `SECRET_KEY` in `auth.py` is currently hardcoded for development.
+**Security Note:** The `SECRET_KEY` is loaded from a `.env` file using `python-dotenv`.
 
-**In production, use environment variables:**
+**Setup:**
 ```bash
-# Method 1: Direct export
-export SECRET_KEY="your-ultra-secure-32-character-key"
-
-# Method 2: .env file
 # .env
-SECRET_KEY=your-ultra-secure-key
+SECRET_KEY=your-ultra-secure-32-character-key
 DATABASE_URL=postgresql://user:pass@host/db
 ```
 
-Then load with `python-dotenv`:
-```python
-from dotenv import load_dotenv
-load_dotenv()
-```
-
+Never commit your `.env` file — it is listed in `.gitignore`.
+''''
 ---
 
 **Questions?** Feel free to open an issue or contact me: jenny.saucy@outlook.com :)
