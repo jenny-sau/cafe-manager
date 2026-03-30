@@ -121,15 +121,6 @@ def complete_order(
         raise HTTPException(status_code=400, detail="Order is not pending")
 
     order_items = (db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all())
-    for item in order_items:
-        inventory = db.query(models.Inventory).filter(
-            models.Inventory.user_id == current_user.id,
-            models.Inventory.menu_item_id == item.menu_item_id
-        ).first()
-        if not inventory or inventory.quantity < item.quantity:
-            raise HTTPException(status_code=400, detail="Not enough stock")
-
-    #Effets
     total = Decimal("0.00")
     for item in order_items:
         inventory = (db.query(models.Inventory).filter(
@@ -138,6 +129,11 @@ def complete_order(
         )
         .with_for_update()
         .first())
+
+        if not inventory or inventory.quantity < item.quantity:
+            raise HTTPException(status_code=400, detail="Not enough stock")
+
+        #Effets
 
         menu_item = db.query(models.MenuItem).filter(
             models.MenuItem.id == item.menu_item_id).first()
