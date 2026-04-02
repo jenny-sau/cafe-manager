@@ -22,37 +22,41 @@ def order_for_client(
 ):
     """Place an order for a customer. The order is placed on hold."""
 
-    #Create the global command
+    # checks and stock
+    menu_items = {}
+    for item in order_data.items:
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id
+        ).first()
+        if not menu_item:
+            raise HTTPException(status_code=404, detail="Item not found")
+        menu_items[item.menu_item_id] = menu_item
+
+    #  Create the order only if everything is valid
     order = models.Order(
         user_id=current_user.id,
         status=models.OrderStatus.PENDING
     )
     db.add(order)
-    db.flush() #to have order.id without comit
+    db.flush()
 
-    #create command lines
+    # Create the command lines
     response_items = []
     for item in order_data.items:
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == item.menu_item_id
-        ).first()
-
-        if not menu_item:
-            raise HTTPException(status_code=404, detail="Item not found")
+        menu_item = menu_items[item.menu_item_id]  #  already in memory
 
         order_item = models.OrderItem(
-            order_id = order.id,
-            menu_item_id= item.menu_item_id,
+            order_id=order.id,
+            menu_item_id=item.menu_item_id,
             quantity=item.quantity,
-    )
+        )
+        db.add(order_item)
+
         response_items.append(
             {"menu_item_name": menu_item.name,
              "menu_item_id": menu_item.id,
-             "quantity": item.quantity
-             }
+             "quantity": item.quantity}
         )
-
-        db.add(order_item)
 
         log_action(
             db=db,
@@ -61,8 +65,6 @@ def order_for_client(
             message=f"New order : {item.quantity}x {menu_item.name}"
         )
 
-
-    #final commit
     db.commit()
 
     return {
@@ -70,6 +72,7 @@ def order_for_client(
         "order_id": order.id,
         "items": response_items
     }
+
 
 @router.get(
     "/orders/{order_id}",
@@ -154,15 +157,17 @@ def complete_order(
         )
         inventory.quantity -= item.quantity
 
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action_type="order_completed",
-        message=f"Total commande #{order.id} : +{total}€",
-        amount=total
-    )
+
 
     try:
+        log_action(
+            db=db,
+            user_id=current_user.id,
+            action_type="order_completed",
+            message=f"Total commande #{order.id} : +{total}€",
+            amount=total
+        )
+
         order.status = models.OrderStatus.COMPLETED
         current_user.money += total
         db.commit()
