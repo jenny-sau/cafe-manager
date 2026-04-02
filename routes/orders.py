@@ -126,7 +126,11 @@ def complete_order(
     if order.status != models.OrderStatus.PENDING:
         raise HTTPException(status_code=400, detail="Order is not pending")
 
-    order_items = (db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all())
+    order_items = (db.query(models.OrderItem).
+                   options(joinedload(models.OrderItem.menu_item))
+                   .filter(models.OrderItem.order_id == order_id)
+                   .all())
+
     total = Decimal("0.00")
     for item in order_items:
         inventory = (db.query(models.Inventory).filter(
@@ -139,18 +143,14 @@ def complete_order(
         if not inventory or inventory.quantity < item.quantity:
             raise HTTPException(status_code=400, detail="Not enough stock")
 
-        #Effets
-
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == item.menu_item_id).first()
-
-        montant = menu_item.selling_price * item.quantity
-        total+=montant
+        #Effect
+        amount = item.menu_item.selling_price * item.quantity
+        total+=amount
         log_action(
             db=db,
             user_id=current_user.id,
             action_type="order_completed",
-            message=f"Commande complétée : {item.quantity}x {menu_item.name} (+{montant}€)"
+            message=f"Commande complétée : {item.quantity}x {item.menu_item.name} (+{amount}€)"
         )
         inventory.quantity -= item.quantity
 
