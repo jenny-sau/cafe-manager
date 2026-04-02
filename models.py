@@ -20,10 +20,10 @@ class User(Base):
     is_admin = Column(Boolean, server_default="false", nullable=False)
 
     # Relations
-    orders = relationship("Order", back_populates="user")
-    inventory_items = relationship("Inventory", back_populates="user")
-    game_logs = relationship("GameLog", back_populates="user")
-    player_progress = relationship("PlayerProgress", back_populates="user", uselist=False)
+    orders = relationship("Order", back_populates="user",lazy="raise_on_sql")
+    inventory_items = relationship("Inventory", back_populates="user", lazy="raise_on_sql")
+    game_logs = relationship("GameLog", back_populates="user", lazy="raise_on_sql")
+    player_progress = relationship("PlayerProgress", back_populates="user", uselist=False, lazy="raise_on_sql")
 
 
 # ----------------
@@ -36,8 +36,8 @@ class MenuItem(Base):
     purchase_price = Column(Numeric(10, 2), nullable=False)
     selling_price = Column(Numeric(10, 2), nullable=False)
 
-    inventory_items = relationship("Inventory", back_populates="menu_item")
-    orders_items = relationship("OrderItem", back_populates="menu_item")
+    inventory_items = relationship("Inventory", back_populates="menu_item", lazy="raise_on_sql")
+    orders_items = relationship("OrderItem", back_populates="menu_item", lazy="raise_on_sql")
 
 
 # ----------------
@@ -51,8 +51,8 @@ class Inventory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Relationship
-    user = relationship("User", back_populates="inventory_items")
-    menu_item = relationship("MenuItem", back_populates="inventory_items")
+    user = relationship("User", back_populates="inventory_items", lazy="raise_on_sql")
+    menu_item = relationship("MenuItem", back_populates="inventory_items", lazy="raise_on_sql")
 
 
 # ----------------
@@ -73,8 +73,8 @@ class Order(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationship
-    user = relationship("User", back_populates="orders")
-    items = relationship("OrderItem", back_populates="order")
+    user = relationship("User", back_populates="orders", lazy="raise_on_sql")
+    items = relationship("OrderItem", back_populates="order", lazy="raise_on_sql")
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -84,8 +84,8 @@ class OrderItem(Base):
     quantity = Column(Integer)
 
     # Relations
-    order = relationship("Order", back_populates="items")
-    menu_item = relationship("MenuItem")
+    order = relationship("Order", back_populates="items", lazy="raise_on_sql")
+    menu_item = relationship("MenuItem", lazy="raise_on_sql")
 
 # ----------------
 # GameLog : For the player's history
@@ -100,7 +100,7 @@ class GameLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationship
-    user = relationship("User", back_populates="game_logs")
+    user = relationship("User", back_populates="game_logs", lazy="raise_on_sql")
 
 
 # ----------------
@@ -117,4 +117,4 @@ class PlayerProgress(Base):
     total_money_spent = Column(Numeric(12, 2), server_default="0.00")
 
     # Relationship
-    user = relationship("User", back_populates="player_progress")
+    user = relationship("User", back_populates="player_progress", lazy="raise_on_sql")

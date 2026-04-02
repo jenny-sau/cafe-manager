@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from dependencies import get_current_admin, get_current_user
 from schemas import InventoryOut, InventoryItemOut, InventoryItemPlayerOut
@@ -21,11 +21,14 @@ def list_inventory(
     current_user: models.User = Depends(get_current_user)
 ):
     """Check the inventory of products that the cafe has in stock."""
+
     inventory_items = (
         db.query(models.Inventory)
+        .options(joinedload(models.Inventory.menu_item))
         .filter(models.Inventory.user_id == current_user.id)
         .all()
     )
+
 
     items = [
         InventoryItemPlayerOut(
