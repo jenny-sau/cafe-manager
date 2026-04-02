@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from dependencies import get_current_admin, get_current_user, log_action
 from schemas import OrderCreate, OrderCreatedOut, OrderDetailOut, OrderStatusOut, PaginatedAdminOrdersOut, OrderStatusEnum
@@ -12,7 +12,9 @@ router = APIRouter()
 # ----------------------
 # CRUD CLIENT'S ORDER
 # ----------------------
-@router.post("/order/client", tags=["Order"], response_model=OrderCreatedOut)
+@router.post(
+    "/order/client", tags=["Order"],
+    response_model=OrderCreatedOut)
 def order_for_client(
         order_data: OrderCreate,
         db: Session = Depends(get_db),
@@ -26,7 +28,7 @@ def order_for_client(
         status=models.OrderStatus.PENDING
     )
     db.add(order)
-    db.flush() #pour obtenir order.id sans comit
+    db.flush() #to have order.id without comit
 
     #create command lines
     response_items = []
@@ -56,27 +58,32 @@ def order_for_client(
             db=db,
             user_id=current_user.id,
             action_type="order_created",
-            message=f"Nouvelle commande : {item.quantity}x {menu_item.name}"
+            message=f"New order : {item.quantity}x {menu_item.name}"
         )
 
 
-    #final comit
+    #final commit
     db.commit()
 
     return {
-        "message": "Commande passée",
+        "message": "Order placed",
         "order_id": order.id,
         "items": response_items
     }
 
-@router.get("/orders/{order_id}", tags=["Order"], response_model=OrderDetailOut)
+@router.get(
+    "/orders/{order_id}",
+    tags=["Order"],
+    response_model=OrderDetailOut)
 def read_order(
         order_id: int,
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
     """View order details."""
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    order = (db.query(models.Order)
+             .filter(models.Order.id == order_id)
+             .first())
 
     # Verification:
     if not order:
@@ -84,17 +91,16 @@ def read_order(
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your order")
 
-    items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all()
+    items = (db.query(models.OrderItem)
+             .options(joinedload(models.OrderItem.menu_item))
+             .filter(models.OrderItem.order_id == order_id)
+             .all())
 
     items_response = []
     for item in items:
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == item.menu_item_id
-        ).first()
-
         items_response.append(
-            {"menu_item_id": menu_item.id,
-             "menu_item_name": menu_item.name,
+            {"menu_item_id": item.menu_item.id,
+             "menu_item_name": item.menu_item.name,
              "quantity": item.quantity}
         )
 
@@ -178,7 +184,7 @@ def cancel_order(
 ):
     """Changes the status of an order from PENDING to CANCELLED. The player failed to complete the order in time; the order is canceled."""
 
-    #Vérificiations
+    #Checks
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
