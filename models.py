@@ -85,7 +85,7 @@ class OrderItem(Base):
 
     # Relations
     order = relationship("Order", back_populates="items", lazy="raise_on_sql")
-    menu_item = relationship("MenuItem", lazy="raise_on_sql")
+    menu_item = relationship("MenuItem", back_populates="orders_items", lazy="raise_on_sql")
 
 # ----------------
 # GameLog : For the player's history

@@ -15,7 +15,7 @@ def restock_item(
         db: Session = Depends(get_db),
         current_user: models.User = Depends(get_current_user)
 ):
-    """ Place a coffee order. This increases the player's inventory and decreases the player's money, and logs the action."""
+    """ Place an order. This increases the player's inventory and decreases the player's money, and logs the action."""
     # Lock the user (to secure the money)
     user = (
         db.query(models.User)
@@ -29,14 +29,15 @@ def restock_item(
     ).first()
 
     if not menu_item:
-        raise HTTPException(status_code=404, detail="Produit non trouvé")
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    montant_depense = menu_item.purchase_price * order.quantity
+    amount_of_spending = menu_item.purchase_price * order.quantity
 
-    if user.money < montant_depense:
-        raise HTTPException(status_code=400, detail="Pas assez d'argent !")
+    if user.money < amount_of_spending:
+        raise HTTPException(status_code=400, detail="Not enough money!")
 
-    user.money -= montant_depense
+    user.money -= amount_of_spending
+
     #Lock the inventory if it exists
     inventory_item = (db.query(models.Inventory).filter(
         models.Inventory.menu_item_id == order.menu_item_id,
@@ -59,8 +60,8 @@ def restock_item(
         db=db,
         user_id=current_user.id,
         action_type="restock",
-        message=f"Réapprovisionnement : {order.quantity}x {menu_item.name} → -{montant_depense:.2f}€",
-        amount=-montant_depense
+        message=f"Restock : {order.quantity}x {menu_item.name} → -{amount_of_spending:.2f}€",
+        amount=-amount_of_spending
     )
 
     db.commit()
