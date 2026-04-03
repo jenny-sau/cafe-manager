@@ -61,4 +61,4 @@ def test_user_on_admin_only(client, user_token):
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Accès refusé : Vous devez être admin"
+    assert response.json()["detail"] == "Access denied: You must be an admin"
