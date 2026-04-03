@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from dependencies import get_current_user, log_action
+from dependencies import get_current_user
+from game_utils import log_action
 from schemas import InventoryItemOut, RestockCreate
 
 import models

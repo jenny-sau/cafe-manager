@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from decimal import Decimal
 import models
 
 
@@ -29,10 +30,10 @@ def log_action(
         # Créer un nouveau PlayerProgress avec toutes les valeurs
         progress = models.PlayerProgress(
             user_id=user_id,
-            total_money_earned=0.0,
+            total_money_earned=Decimal("0.00"),
             total_orders=0,
             current_level=1,
-            total_money_spent=0.0
+            total_money_spent=Decimal("0.00")
         )
         db.add(progress)
         db.flush()  # Force la création immédiate
