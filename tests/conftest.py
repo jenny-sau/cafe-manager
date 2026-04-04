@@ -10,7 +10,7 @@ from database import get_db
 import pytest
 
 
-# Créer une base de données en mémoire pour les tests
+#  Create an in-memory database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
 
@@ -26,30 +26,31 @@ TestingSessionLocal = sessionmaker(
 
 @pytest.fixture(autouse=True)
 def disable_rate_limiter():
-    app.state.limiter.enabled =False
+    app.state.limiter.enabled = False
+
 @pytest.fixture(scope="function")
 def db():
     """
-    Crée une base de données fraîche pour chaque test.
+    Creates a new database for each test.
     """
-    # Créer toutes les tables
+    # Create all tables
     Base.metadata.create_all(bind=engine)
 
-    # Créer une session
+    # Create a session
     db = TestingSessionLocal()
 
     try:
         yield db
     finally:
         db.close()
-        # Supprimer toutes les tables après le test
+        # Delete all tables after the test
         Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
 def client(db):
     """
-    Crée un client de test qui utilise la DB de test.
+    Create a test client that uses the test database.
     """
 
     def override_get_db():
@@ -67,10 +68,9 @@ def client(db):
     app.dependency_overrides.clear()
 
 
-#---------------------------------------------------
-# FIXTURE D'AUTH
-#---------------------------------------------------
-#Token utilisateur simple:
+#--------------------------------------------------------------------
+
+#Token for USER:
 @pytest.fixture
 def user_token(client):
 
@@ -89,7 +89,7 @@ def user_token(client):
     token = login_response.json()["access_token"]
     return token
 
-# Fixture pour un seconde user:
+# Fixture for a secondary user:
 @pytest.fixture
 def second_user_token(client):
     client.post("/auth/signup", json={
@@ -107,7 +107,7 @@ def second_user_token(client):
     return login.json()["access_token"]
 
 
-#Token utilisateur ADMIN:
+#Token ADMIN:
 @pytest.fixture
 def admin_token(client, db):
 
@@ -129,49 +129,45 @@ def admin_token(client, db):
 
     return token
 
-# Header pour ADMIN
-@pytest.fixture
-def admin_headers(admin_token):
-    return {
-        "Authorization": f"Bearer {admin_token}"
-    }
-
-# Header pour user simple
+# Header for user
 @pytest.fixture
 def user_headers(user_token):
     return {
         "Authorization": f"Bearer {user_token}"
     }
 
-#Générer un id user
-@pytest.fixture
-def user_id(client, admin_token):
-    headers = {"Authorization": f"Bearer {admin_token}"}
 
-    # Signup
+# Header for ADMIN
+@pytest.fixture
+def admin_headers(admin_token):
+    return {
+        "Authorization": f"Bearer {admin_token}"
+    }
+
+# Generate a user ID
+@pytest.fixture
+def user_id(client, db):
+
     client.post("/auth/signup", json={
         "username": "jenny",
         "password": "Secret1",
         "is_admin": False
     })
 
-    # Récupération du user (via route admin)
-    response = client.get(
-        "/users/1",  # ou une route /users?username=jenny si tu l’as
-        headers=headers
-    )
+    from models import User
+    user = db.query(User).filter(User.username == "jenny").first()
 
-    assert response.status_code == 200
-    return response.json()["id"]
+    assert user is not None
 
+    return user.id
 
-#Créer un menu (admin)
+#Create a menu (admin)
 @pytest.fixture
 def menu_id(client, admin_token):
-    # GIVEN: J'ai un token admin fourni par la fixture
+    # GIVEN: I have an admin token provided by the fixture
     headers = {"Authorization": f"Bearer {admin_token}"}
 
-    # WHEN: j'appelle une route admin
+    # WHEN: I call an ADMIN only endpoint
     response = client.post(
         "/menu",
         json={
@@ -187,7 +183,7 @@ def menu_id(client, admin_token):
     menu_id= response.json()["id"]
     return menu_id
 
-#Créer plusieurs item au menu(admin)
+#Create multiple menu items (admin)
 @pytest.fixture()
 def menu_ids(client, admin_token):
     headers = {"Authorization": f"Bearer {admin_token}"}
@@ -207,7 +203,7 @@ def menu_ids(client, admin_token):
         ids.append(response.json()["id"])
     return ids
 
-#Créer des produits dans l'inventaire
+#Create products in the inventory
 @pytest.fixture()
 def inventory_item_id(client, user_token, menu_id):
     headers = {"Authorization": f"Bearer {user_token}"}
@@ -226,7 +222,7 @@ def inventory_item_id(client, user_token, menu_id):
     return inventory_item_id
 
 
-#Créer une commande
+#Place an order
 @pytest.fixture()
 def order_id (client, user_token, menu_id, inventory_item_id):
     response = client.post(
@@ -245,7 +241,7 @@ def order_id (client, user_token, menu_id, inventory_item_id):
     order_id = response.json()["order_id"]
     return order_id
 
-# Créer des commandes pour 2 users différents:
+# Create orders for two different users:
 @pytest.fixture
 def second_order_id(client, second_user_token, menu_id, inventory_item_id):
     response = client.post(
@@ -257,5 +253,5 @@ def second_order_id(client, second_user_token, menu_id, inventory_item_id):
         },
         headers = {"Authorization": f"Bearer {second_user_token}"}
     )
-
+    assert response.status_code == 200
     return response.json()["order_id"]
