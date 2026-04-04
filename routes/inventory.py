@@ -29,7 +29,6 @@ def list_inventory(
         .all()
     )
 
-
     items = [
         InventoryItemPlayerOut(
             menu_item_id=inv.menu_item_id,
@@ -73,20 +72,16 @@ def admin_delete_inventory(
 ):
     """Deletes any inventory item (admin only)."""
 
-    db_item = db.query(models.Inventory).filter(
-        models.Inventory.id == item_id
-    ).first()
+    db_item = (db.query(models.Inventory)
+               .options(
+                        joinedload(models.Inventory.menu_item),
+                        joinedload(models.Inventory.user)
+                        )
+               .filter(models.Inventory.id == item_id)
+               .first())
 
     if not db_item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-
-    user = db.query(models.User).filter(
-        models.User.id == db_item.user_id
-    ).first()
-
-    menu_item = db.query(models.MenuItem).filter(
-        models.MenuItem.id == db_item.menu_item_id
-    ).first()
 
     db.delete(db_item)
     db.commit()
@@ -95,8 +90,8 @@ def admin_delete_inventory(
         "message": "Inventory deleted",
         "deleted_item": {
             "id": item_id,
-            "product_name": menu_item.name if menu_item else "Unknown",
+            "product_name": db_item.menu_item.name if db_item.menu_item else "Unknown",
             "quantity": db_item.quantity,
-            "owner": user.username if user else "Unknown"
+            "owner": db_item.user.username if db_item.user else "Unknown"
         }
     }

@@ -12,22 +12,22 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
 def hash_password(password: str) -> str:
-    """Hash un mot de passe en clair."""
+    """Hash a password in plain text."""
     password_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
     return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Vérifie si un mot de passe correspond au hash."""
+    """Checks if a password matches the hash.."""
     password_bytes = plain_password.encode('utf-8')
     hashed_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 def create_access_token(data: dict) -> str:
     """
-    Crée un JWT token.
-    data doit contenir {"user_id": 123} par exemple.
+    Create a JWT token.
+    Data should contain {"user_id": 123} for example.
     """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
@@ -37,13 +37,13 @@ def create_access_token(data: dict) -> str:
 
 def decode_access_token(token: str) -> dict:
     """
-    Décode un JWT token et retourne les données.
-    Lève une exception si le token est invalide ou expiré.
+    Decodes a JWT token and returns the data.
+    Raises an exception if the token is invalid or expired.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
-        raise Exception("Token expiré")
+        raise Exception("Expired token")
     except jwt.JWTError:
-        raise Exception("Token invalide")
+        raise Exception("Invalid token")
