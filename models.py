@@ -48,7 +48,7 @@ class Inventory(Base):
     id = Column(Integer, primary_key=True, index=True)
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False)
     quantity = Column(Integer, default=0)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Relationship
     user = relationship("User", back_populates="inventory_items", lazy="raise_on_sql")
@@ -68,7 +68,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True) # Les numéros de commandes
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING,  nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -79,7 +79,7 @@ class Order(Base):
 class OrderItem(Base):
     __tablename__ = "order_items"
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
+    order_id = Column(Integer, ForeignKey("orders.id"), index=True)
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
     quantity = Column(Integer)
 
@@ -93,7 +93,7 @@ class OrderItem(Base):
 class GameLog(Base):
     __tablename__ = "gamelog"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     action_type = Column(String)
     message = Column(String)
     amount = Column(Numeric(10, 2), nullable=True)
