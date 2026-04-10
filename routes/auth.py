@@ -60,10 +60,10 @@ def login(
     ).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="Username ou password incorrect")
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     if not verify_password(credentials.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Username ou password incorrect")
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     token = create_access_token(data={"user_id": user.id})
 

@@ -60,7 +60,7 @@ def test_wrong_password(client):
         }
     )
     assert signup_response.status_code == 201
-    # Login avec mauvais mdp:
+    # Login with incorrect password:
     login_response = client.post(
         "/auth/login",
         json = {
@@ -70,7 +70,12 @@ def test_wrong_password(client):
     )
     assert login_response.status_code==401
     data = login_response.json()
-    assert data["detail"]=="Username ou password incorrect"
+    assert data["detail"]=="Incorrect username or password"
+
+def test_signup_weak_password(client):
+    # Login with password too short
+    response = client.post("/auth/signup", json={"username": "test", "password": "abc"})
+    assert response.status_code == 422
 
 def test_user_does_not_exist(client):
     signup_response = client.post(
@@ -82,7 +87,7 @@ def test_user_does_not_exist(client):
     )
     assert signup_response.status_code == 201
 
-    #login avec mauvais user
+    #login with wrong user
     login_response =  client.post(
         "/auth/login",
         json = {
@@ -92,5 +97,11 @@ def test_user_does_not_exist(client):
     )
     assert login_response.status_code==401
     data = login_response.json()
-    assert data["detail"] == "Username ou password incorrect"
+    assert data["detail"] == "Incorrect username or password"
 
+def test_invalid_token(client):
+    response = client.get(
+        "/inventory",
+        headers={"Authorization": "Bearer ceciestunfauxtoken"}
+    )
+    assert response.status_code == 401
