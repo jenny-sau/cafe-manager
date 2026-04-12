@@ -1,34 +1,36 @@
 # GET /game/stats
 #---------------------------------------------
-#Test GET /admin/orders - Un admin peut voir les stats du jeu
-def test_get_admin_game_stats(client, admin_token, order_id):
-    headers = {"Authorization": f"Bearer {admin_token}"}
 
+#An admin can view the game stats
+def test_get_admin_game_stats(client, admin_token, order_id):
     response = client.get(
         "/game/stats",
-        headers=headers
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
 
     assert response.status_code == 200
 
-#Test GET /game/history - Un user peut consulter son historique de jeu
+#A user can view their gaming history
 def test_get_game_history(client, user_token, order_id):
-    headers = {"Authorization": f"Bearer {user_token}"}
-
     response = client.get(
         "/game/history",
-        headers=headers
+        headers={"Authorization": f"Bearer {user_token}"}
     )
 
     assert response.status_code == 200
 
-#Test GET /game/stats - Un user peut consulter ses stats
+#A user can view their stats
 def test_get_game_stats(client, user_token, order_id):
-    headers = {"Authorization": f"Bearer {user_token}"}
-
     response = client.get(
         "/game/stats",
-        headers=headers
+        headers={"Authorization": f"Bearer {user_token}"}
     )
 
+    assert response.status_code == 200
+
+def test_get_game_stats_empty(client, user_token):
+    response = client.get(
+        "/game/stats",
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
     assert response.status_code == 200
