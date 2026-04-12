@@ -1,34 +1,31 @@
 # -----------------------------------------
-# Tests des dépendances de sécurité
+# Security dependency testing
 # -----------------------------------------
 
 # get_current_user OK
 def test_get_current_user_ok(client, user_token, menu_id):
-    headers = {"Authorization": f"Bearer {user_token}"}
-
     response = client.get(
         f"/menu/{menu_id}",
-        headers=headers
+        headers= {"Authorization": f"Bearer {user_token}"}
     )
-
     assert response.status_code == 200
 
 
-# get_current_user sans token -> 403
+# get_current_user without token -> 403
 def test_get_item_menu_without_token(client, menu_id):
-    response = client.get(f"/menu/{menu_id}")
-
+    response = client.get(
+        f"/menu/{menu_id}"
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "Not authenticated"
 
 
-# get_current_user token invalide -> 401
+# get_current_user invalid token -> 401
 def test_get_item_menu_wrong_token(client, menu_id):
     response = client.get(
         f"/menu/{menu_id}",
         headers={"Authorization": "Bearer totally.invalid.token"}
     )
-
     assert response.status_code == 401
 
 
@@ -43,13 +40,11 @@ def test_admin_ok(client, admin_token):
         },
         headers={"Authorization": f"Bearer {admin_token}"}
     )
-
     assert response.status_code == 201
 
 
-# get_current_admin bloque user -> 403
+# get_current_admin blocks user -> 403
 def test_user_on_admin_only(client, user_token):
-
     response = client.post(
         "/menu",
         json={
@@ -59,6 +54,5 @@ def test_user_on_admin_only(client, user_token):
         },
         headers={"Authorization": f"Bearer {user_token}"}
     )
-
     assert response.status_code == 403
     assert response.json()["detail"] == "Access denied: You must be an admin"
