@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/admin/stats", tags=["Stats"])
 def get_global_stats(
         db: Session = Depends(get_db),
-        current_admin: models.User = Depends(get_current_admin)  #Admin requis
+        current_admin: models.User = Depends(get_current_admin)
 ):
     """Overall game statistics (admin only)."""
 
@@ -76,7 +76,7 @@ def get_game_stats(
 ):
     """Retrieves the player's cumulative statistics."""
 
-    # Retrieve or create PlayerProgress8
+    # Retrieve or create PlayerProgress
     progress = db.query(models.PlayerProgress).filter(
         models.PlayerProgress.user_id == current_user.id
     ).first()
@@ -100,7 +100,7 @@ def get_game_stats(
         stats=PlayerStatsDetails(
             total_money_earned=progress.total_money_earned,
             total_money_spent=progress.total_money_spent,
-            profit=progress.total_money_earned - progress.total_money_spent,
+            profit=profit,
             total_orders=progress.total_orders
         )
     )
