@@ -64,30 +64,13 @@ def list_menu(
     total_items = db.query(models.MenuItem).count()
     total_pages = math.ceil(total_items / limit)
 
-    menu_with_stock = []
-
-    for item in all_items:
-        stock = db.query(models.Inventory).filter(
-            models.Inventory.menu_item_id == item.id
-        ).first()
-
-        product_info = {
-            "id": item.id,
-            "name": item.name,
-            "purchase_price": item.purchase_price,
-            "selling_price": item.selling_price,
-            "stock": stock.quantity if stock else 0,
-            "available": "available" if stock and stock.quantity > 0 else "unavailable"
-        }
-
-        menu_with_stock.append(product_info)
 
     return {
         "page": page,
         "limit": limit,
         "total_items": total_items,
         "total_pages": total_pages,
-        "items": menu_with_stock
+        "items": all_items
     }
 
 @router.put(

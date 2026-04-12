@@ -90,14 +90,6 @@ class MenuItemUpdate(BaseModel):
     purchase_price: Optional[float] = Field(None, gt=0)
     selling_price: Optional[float] = Field(None, gt=0)
 
-class MenuItemWithStock(BaseModel):
-    """Menu item enriched with stock data from inventory. Used in paginated list."""
-    id: int
-    name: str
-    purchase_price: float
-    selling_price: float
-    stock: int
-    available: str
 
 class MenuListResponse(BaseModel):
     """Paginated list of menu items with stock info."""
@@ -105,7 +97,7 @@ class MenuListResponse(BaseModel):
     limit: int
     total_items: int
     total_pages: int
-    items: list[MenuItemWithStock]
+    items: list[MenuItemOut]
 
 # ------------------------------------------------------------------------------------
 # RESTOCK
