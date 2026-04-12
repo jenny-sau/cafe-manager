@@ -8,11 +8,11 @@ def log_action(
         user_id: int,
         action_type: str,
         message: str,
-        amount: float = None
+        amount: Decimal  = None
 ):
-    """Enregistre une action dans le GameLog et met à jour PlayerProgress."""
+    """Records an action in the GameLog and updates PlayerProgress.."""
 
-    # 1. Créer le log
+    # 1. Create the log
     db_gameLog = models.GameLog(
         user_id=user_id,
         action_type=action_type,
@@ -21,13 +21,13 @@ def log_action(
     )
     db.add(db_gameLog)
 
-    # 2. Récupérer ou créer PlayerProgress
+    # 2. Retrieve or create PlayerProgress
     progress = db.query(models.PlayerProgress).filter(
         models.PlayerProgress.user_id == user_id
     ).first()
 
     if not progress:
-        # Créer un nouveau PlayerProgress avec toutes les valeurs
+        # Create a new PlayerProgress with all the values
         progress = models.PlayerProgress(
             user_id=user_id,
             total_money_earned=Decimal("0.00"),
@@ -36,9 +36,9 @@ def log_action(
             total_money_spent=Decimal("0.00")
         )
         db.add(progress)
-        db.flush()  # Force la création immédiate
+        db.flush()  # Force immediate creation
 
-    # 3. Mettre à jour les stats selon le type d'action
+    # 3. Update stats based on the type of action
     if action_type == "order_client" and amount:
         progress.total_money_earned += amount
         progress.total_orders += 1
@@ -46,7 +46,7 @@ def log_action(
     elif action_type == "restock" and amount:
         progress.total_money_spent += abs(amount)
 
-    # 4. Calculer le niveau
+    # 4. Calculate the level
     old_level = progress.current_level
 
     if progress.total_money_earned >= 10000 and progress.total_orders >= 1000:
@@ -60,16 +60,14 @@ def log_action(
     else:
         progress.current_level = 1
 
-    # Si le niveau a augmenté, logger
+    # If the level has risen, log it
     if progress.current_level > old_level:
         level_up_log = models.GameLog(
             user_id=user_id,
             action_type="level_up",
-            message=f"BRAVO! Niveau {progress.current_level} atteint !",
+            message=f"Congrats! Level {progress.current_level} achieved !",
             amount=None
         )
         db.add(level_up_log)
 
 
-    # 5. Commit
-    db.commit()
