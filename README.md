@@ -13,6 +13,7 @@ A REST API backend for a café management game, with complete business logic: re
 ## Table of Contents
 
 - [Overview](#overview)
+- [Demo](#demo)
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -20,7 +21,6 @@ A REST API backend for a café management game, with complete business logic: re
 - [Architecture](#architecture)
 - [Skills Developed](#skills-developed)
 - [Tests](#tests)
-- [Future Improvements](#future-improvements)
 - [What I Learned](#what-i-learned)
 - [Configuration](#configuration)
 
@@ -55,6 +55,26 @@ Personal learning project to master backend development:
 - Understand modern application architecture (auth, DB, tests)
 
 ---
+## Demo
+
+The API is deployed on **Railway** and ready to test:
+
+**Swagger UI:** https://web-production-21930.up.railway.app/docs
+
+### Test Credentials
+
+A test admin account is available to explore all endpoints:
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin | TestAdmin | TestAdmin123 |
+| Player | Create your own via `/auth/signup` | — |
+
+### Quick Test
+1. Go to the [Swagger UI](https://web-production-21930.up.railway.app/docs)
+2. Call `POST /auth/login` with the credentials above
+3. Click **"Authorize"** and paste the token
+4. All endpoints are now accessible 
 
 ## Features
 
@@ -66,13 +86,15 @@ Personal learning project to master backend development:
 - **Statistics**: Track profits, level, history
 
 ### For Admins
-- **Menu Management**: Add/modify/delete products
+- **Menu Management**: Add/modify/delete menu item
 - **User Management**: Full CRUD
 - **Global Stats**: Game overview
 
 ---
 
 ## Installation
+
+> The API is already deployed at https://web-production-21930.up.railway.app/docs — installation is only needed to run the project locally.
 
 ### Prerequisites
 - Python 3.11+
@@ -108,46 +130,21 @@ uvicorn main:app --reload
 
 ## Quick Start
 
-### 1. Create an Account
-```bash
-POST /auth/signup
-```
+The fastest way to explore the API is via the live Swagger UI:
+**https://web-production-21930.up.railway.app/docs**
+
+### 1. Login with the test account
+Use `POST /auth/login` with:
 ```json
 {
-  "username": "maria",
-  "password": "Secret123",
-  "money": 100.0
+  "username": "TestAdmin",
+  "password": "TestAdmin123"
 }
 ```
+### 2. Authorize in Swagger
+Copy the token in the response and click **"Authorize"** and paste the token — all endpoints are now accessible.
 
-### 2. Login
-```bash
-POST /auth/login
-```
-```json
-{
-  "username": "maria",
-  "password": "Secret123"
-}
-```
-
-
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-### 3. Use the Token
-
-In Swagger UI (http://127.0.0.1:8000/docs):
-1. Click the **"Authorize"** button
-2. Paste the token
-3. All protected endpoints are now accessible!
-
-### 4. Test a Complete Workflow
+### 3. Try a complete workflow
 ```bash
 # View menu
 GET /menu
@@ -172,28 +169,6 @@ POST /order/client
 # Serve the customer
 PATCH /order/{order_id}/complete
 ```
-> Admin endpoints require a manually promoted admin user (see Admin System section).
-
-### 5. Create an Admin Account
-
-To test admin features, create an account and promote it manually:
-
-**Step 1 — Create the account via the API:**
-```json
-POST /auth/signup
-{
-  "username": "Admin",
-  "password": "Admin123",
-  "money": 100.0
-}
-```
-
-**Step 2 — Connect to the database and run:**
-```sql
-UPDATE users SET is_admin = true WHERE username = 'Admin';
-```
-
-You can now login with `Admin` / `Admin123` and access all admin endpoints.
 
 ---
 ## Admin System
@@ -222,12 +197,6 @@ This choice was made to better reflect real-world backend practices:
 - Keep admin control restricted and explicit
 
 In a production environment, this would typically be handled via an internal interface or a role-based access control (RBAC) system.
-
-### Dev Note
-
-For testing purposes, it is possible to temporarily allow admin creation in the signup route.
-
-This is intentionally not enabled by default.
 
 
 ## How It Works
@@ -356,6 +325,13 @@ GET    /admin/stats     Global stats (admin)
 - Automated tests with **pytest** (auth, permissions, logic)
 - Managing two environments (dev:5432, test:5433)
 
+### Technical Decisions
+
+- **SELECT FOR UPDATE** on inventory and user balance to prevent race conditions on concurrent orders
+- **joinedload** to solve N+1 queries on order items and inventory
+- **lazy="raise_on_sql"** on all relationships to catch implicit queries during development
+- **Decimal** instead of float for all monetary calculations
+
 ---
 
 ## Tests
@@ -391,33 +367,16 @@ pytest
 pytest --cov=app tests/
 ```
 
----
-
-## Future Improvements
-
-### Planned Technical Improvements
-
-- Implementation of structured logging (INFO/WARNING/ERROR levels)
-- Code refactoring to reduce repetition
-- Additional tests covering extreme cases and edge scenarios
-- Overall maintainability improvements
 
 ---
 
 ## What I Learned
 
-Beyond the code, this project helped me understand:
-
-**Technical Concepts:**
 - How to structure a REST API with multiple user types (admin/player)
-- The importance of proper error handling to avoid database inconsistencies
-- Thinking about what happens when multiple users use the API simultaneously
-- How to write tests that verify not only that things work, but also that they fail correctly
-
-**General Skills:**
-- Reading technical documentation (FastAPI, SQLAlchemy, pytest)
-- Analyzing my own code to identify its limitations
-- Being honest about what I master vs. what I still need to learn
+- How to write tests that verify that things work and fail correctly
+- Identified and fixed a race condition on concurrent restocks using SELECT FOR UPDATE
+- Discovered N+1 queries in production-like code and resolved them with joinedload
+- Understood why float is dangerous for money and switched to Decimal
 
 ---
 
